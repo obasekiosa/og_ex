@@ -1,0 +1,21 @@
+[package]
+name = "og_ex_native"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "og_ex_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+regex-lite = "0.1"
+rustler = "0.38"
+takumi = { version = "2.4", features = ["from-html", "raster-backend", "rayon", "woff", "woff2"] }
+
+# Takumi 2.4's HTML helper targets html5ever 0.39. The crates.io sparse index
+# can lag the synchronized html5ever workspace release, so pin the matching
+# upstream revision until that release is consistently resolvable.
+[patch.crates-io]
+html5ever = { git = "https://github.com/servo/html5ever.git", rev = "a7588d1a94c7f56c7d6e52a4d32c1d330240e809" }
+markup5ever_rcdom = { git = "https://github.com/servo/html5ever.git", rev = "a7588d1a94c7f56c7d6e52a4d32c1d330240e809" }
