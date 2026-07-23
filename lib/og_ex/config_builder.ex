@@ -1,7 +1,8 @@
 defmodule OgEx.ConfigBuilder do
   @moduledoc false
 
-  @token_salt "og-ex-image-v1"
+  @signature_salt "og-ex-image-v1"
+  @signature_bytes 16
   @reserved_parameter "__og_ex"
 
   @doc """
@@ -16,10 +17,9 @@ defmodule OgEx.ConfigBuilder do
     metadata = card.metadata(assigns)
     version = version(card, assigns)
 
-    # Phoenix.Token authenticates the card module and its content version with
-    # the application's secret_key_base. A caller cannot turn an arbitrary
-    # query parameter into an expensive render request.
-    token = Phoenix.Token.sign(conn, @token_salt, {card, version})
+    # Only a compact MAC is placed in the URL. The controller reconstructs the
+    # card and version later, so embedding them in the parameter is redundant.
+    signature = signature(conn, card, version)
 
     %OgEx.Config{
       card: card,
@@ -29,33 +29,30 @@ defmodule OgEx.ConfigBuilder do
       height: card.__og_ex__(:height),
       format: card.__og_ex__(:format),
       version: version,
-      image_url: image_url(conn, token)
+      image_url: image_url(conn, signature)
     }
   end
 
   @doc """
-  Verifies that an image request token matches the rebuilt card configuration.
+  Verifies that an image request signature matches the rebuilt configuration.
 
-  Both the signed card module and the content version must match.
+  The expected signature binds the card module, content version, and route.
   """
   def verify(conn, %OgEx.Config{} = config) do
-    max_age = Application.get_env(:og_ex, :token_max_age, 31_536_000)
+    expected = signature(conn, config.card, config.version)
 
-    # Verification checks both the token signature and the config rebuilt by
-    # the current controller action. A valid but stale token cannot be used to
-    # render changed data under an old immutable URL.
-    with token when is_binary(token) <- OgEx.Request.token(conn),
-         {:ok, {card, version}} <-
-           Phoenix.Token.verify(conn, @token_salt, token, max_age: max_age),
-         true <- card == config.card,
-         true <- Plug.Crypto.secure_compare(version, config.version) do
+    # Compare equal-length binaries in constant time. A changed card, version,
+    # or route produces a different expected signature.
+    with supplied when is_binary(supplied) <- OgEx.Request.signature(conn),
+         true <- byte_size(supplied) == byte_size(expected),
+         true <- Plug.Crypto.secure_compare(supplied, expected) do
       :ok
     else
-      _ -> {:error, :invalid_image_token}
+      _ -> {:error, :invalid_image_signature}
     end
   end
 
-  # Produces the stable, URL-safe SHA-256 version used by tokens, ETags, and
+  # Produces the stable, URL-safe SHA-256 version used by signatures, ETags, and
   # cache keys. A card-specific version callback avoids hashing unrelated page
   # assigns.
   defp version(card, assigns) do
@@ -74,17 +71,42 @@ defmodule OgEx.ConfigBuilder do
     |> Base.url_encode64(padding: false)
   end
 
+  # Authenticates the reconstructed image identity without embedding it in the
+  # URL. A 128-bit truncated HMAC becomes 22 base64url characters.
+  defp signature(conn, card, version) do
+    message =
+      :erlang.term_to_binary(
+        {card, version, conn.request_path},
+        [:deterministic]
+      )
+
+    :crypto.mac(:hmac, :sha256, signing_key(conn), message)
+    |> binary_part(0, @signature_bytes)
+    |> Base.url_encode64(padding: false)
+  end
+
+  # Derives a domain-separated signing key from Phoenix's secret key base.
+  defp signing_key(conn) do
+    secret_key_base =
+      conn.secret_key_base ||
+        conn.private
+        |> Map.fetch!(:phoenix_endpoint)
+        |> apply(:config, [:secret_key_base])
+
+    :crypto.mac(:hmac, :sha256, secret_key_base, @signature_salt)
+  end
+
   # Builds an absolute URL for the current page while preserving existing query
-  # parameters and replacing any previous OgEx token.
-  defp image_url(conn, token) do
+  # parameters and replacing any previous OgEx signature.
+  defp image_url(conn, signature) do
     # Preserve application query parameters such as locale or preview mode.
-    # Only a previous OgEx token is replaced.
+    # Only a previous OgEx signature is replaced.
     query_params =
       conn
       |> Plug.Conn.fetch_query_params()
       |> Map.fetch!(:query_params)
       |> Map.delete(@reserved_parameter)
-      |> Map.put(@reserved_parameter, token)
+      |> Map.put(@reserved_parameter, signature)
 
     Phoenix.Controller.current_url(conn, query_params)
   end

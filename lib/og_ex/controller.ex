@@ -51,8 +51,9 @@ defmodule OgEx.Controller do
       config = OgEx.ConfigBuilder.build(conn, card, Map.new(page_assigns))
 
       if OgEx.Request.image_request?(conn) do
-        # The reserved, signed query parameter selects the image response. The
-        # normal Phoenix page template is never rendered on this branch.
+        # The reserved compact signature selects the image response. Query
+        # parameters are fetched lazily here, and the normal Phoenix page
+        # template is never rendered on this branch.
         OgEx.ImageResponse.send(conn, config)
       else
         # Register metadata before Phoenix renders and sends the response. The

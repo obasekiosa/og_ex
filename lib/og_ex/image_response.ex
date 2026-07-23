@@ -7,11 +7,11 @@ defmodule OgEx.ImageResponse do
   Verifies and sends a generated card image response.
 
   Successful responses include the correct media type, an ETag, and immutable
-  one-year cache headers. Invalid tokens return 404; render failures return 503
-  without cacheable headers.
+  one-year cache headers. Invalid signatures return 404; render failures return
+  503 without cacheable headers.
   """
   def send(conn, config) do
-    # Token verification happens before cache access. This avoids revealing
+    # Signature verification happens before cache access. This avoids revealing
     # whether a particular private/stale card already exists in the cache.
     with :ok <- OgEx.ConfigBuilder.verify(conn, config),
          {:ok, image} <- cached_or_render(config) do
@@ -22,7 +22,7 @@ defmodule OgEx.ImageResponse do
       |> put_resp_header("etag", ~s("#{config.version}"))
       |> send_resp(:ok, image)
     else
-      {:error, :invalid_image_token} ->
+      {:error, :invalid_image_signature} ->
         send_resp(conn, :not_found, "")
 
       {:error, reason} ->

@@ -12,8 +12,8 @@ defmodule OgEx.RequestLifecycleTest do
   @secret_key_base String.duplicate("og-ex-test-secret-", 4)
 
   setup_all do
-    # Phoenix.Token and current_url/2 read endpoint configuration through the
-    # endpoint stored on the connection.
+    # Signature generation and current_url/2 read endpoint configuration
+    # through the endpoint stored on the connection.
     Application.put_env(:og_ex, OgEx.TestEndpoint,
       secret_key_base: @secret_key_base,
       url: [scheme: "https", host: "example.test", port: 443],
@@ -22,7 +22,7 @@ defmodule OgEx.RequestLifecycleTest do
 
     # Phoenix endpoints keep runtime configuration in an ETS table owned by the
     # endpoint process. Starting this test endpoint mirrors the environment in
-    # which a real controller signs tokens and generates absolute URLs.
+    # in which a real controller signs image URLs.
     start_supervised!(OgEx.TestEndpoint)
 
     :ok
@@ -38,7 +38,7 @@ defmodule OgEx.RequestLifecycleTest do
 
     assert uri.path == "/posts/42"
     assert params["locale"] == "en"
-    assert is_binary(params["__og_ex"])
+    assert byte_size(params["__og_ex"]) == 22
     assert config.metadata.title == "Hello"
   end
 
@@ -47,7 +47,7 @@ defmodule OgEx.RequestLifecycleTest do
       page_conn()
       |> OgEx.ConfigBuilder.build(OgEx.TestCard, %{title: "Hello"})
 
-    token =
+    signature =
       page_config.image_url
       |> URI.parse()
       |> Map.fetch!(:query)
@@ -56,7 +56,7 @@ defmodule OgEx.RequestLifecycleTest do
 
     image_conn =
       :get
-      |> conn("/posts/42?locale=en&__og_ex=#{URI.encode_www_form(token)}")
+      |> conn("/posts/42?locale=en&__og_ex=#{URI.encode_www_form(signature)}")
       |> endpoint_conn()
 
     image_config =
@@ -91,7 +91,15 @@ defmodule OgEx.RequestLifecycleTest do
     assert response.resp_body =~ "</head><body>Page</body>"
   end
 
-  test "an invalid image token is rejected before rendering" do
+  test "request signatures are fetched lazily without an endpoint plug" do
+    conn = conn(:get, "/posts/42?__og_ex=compact")
+
+    assert %Plug.Conn.Unfetched{} = conn.query_params
+    assert OgEx.Request.signature(conn) == "compact"
+    assert OgEx.Request.image_request?(conn)
+  end
+
+  test "an invalid image signature is rejected before rendering" do
     conn =
       :get
       |> conn("/posts/42?__og_ex=invalid")
