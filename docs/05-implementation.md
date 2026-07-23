@@ -49,16 +49,15 @@ GET /posts/42
   -> controller action loads post
   -> OgEx-aware render/3 builds OgEx.Config
   -> normal Phoenix page render
-  -> endpoint plug inserts OG and Twitter/X tags before </head>
+  -> controller callback inserts OG and Twitter/X tags before </head>
 ```
 
 ### Image request
 
 ```text
-GET /posts/42?__og_image=7e948f81
-  -> OgEx.Plug recognizes reserved parameter
+GET /posts/42?__og_ex=4K7fQxRfj2p0DqX_WLAzTA
   -> route/action loads post and calls OgEx-aware render/3
-  -> render/3 verifies the token and selects the image branch
+  -> render/3 lazily fetches and verifies the compact signature
   -> card HEEx is rendered through Chromium
   -> cache lookup/coalescing
   -> renderer returns PNG bytes

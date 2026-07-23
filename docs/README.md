@@ -52,10 +52,10 @@ defmodule MyAppWeb.PostOgCard do
 end
 ```
 
-An application-wide `plug OgEx` installation injects the resulting tags before
-`</head>` and recognizes signed image requests on the same page URL. Application
-code does not define an image route, image controller, layout component, cache
-key, or loader callback.
+The controller integration injects the resulting tags before `</head>` and
+lazily recognizes signed image requests on the same page URL. No application-
+wide plug is required. Application code does not define an image route, image
+controller, layout component, cache key, or loader callback.
 
 The library can still provide inline and sibling-template forms as alternate
 card sources. They should use the same rendering pipeline.

@@ -27,15 +27,17 @@ GET /posts/42
   → OgEx inserts social metadata before </head>
 ```
 
-The generated `og:image` points to the same route:
+The generated `og:image` points to the same route with a compact 22-character
+signature:
 
 ```text
-GET /posts/42?__og_ex=SIGNED_CONTENT_VERSION
+GET /posts/42?__og_ex=4K7fQxRfj2p0DqX_WLAzTA
 ```
 
 That request runs the controller action again. When execution reaches the
-OgEx-aware `render/3`, OgEx verifies the token, renders the card's HEEx through
-Takumi, caches the encoded image, and sends it with `image/png`.
+OgEx-aware `render/3`, it lazily fetches and verifies the signature, renders the
+card's HEEx through Takumi, caches the encoded image, and sends it with
+`image/png`.
 
 ## Installation
 
@@ -59,18 +61,8 @@ The current source build requires Rust 1.91 because Takumi 2.4 requires it.
 Published releases should use precompiled NIFs so consuming applications do not
 need a Rust toolchain.
 
-Install the endpoint plug before the router:
-
-```elixir
-defmodule MyAppWeb.Endpoint do
-  use Phoenix.Endpoint, otp_app: :my_app
-
-  # Fetches OgEx's reserved signed query parameter before controller dispatch.
-  plug OgEx
-
-  plug MyAppWeb.Router
-end
-```
+No endpoint plug or generated route is required. The controller integration
+fetches the reserved query parameter lazily only when `render/3` is reached.
 
 Configure at least one font. Takumi shapes text from supplied font data rather
 than relying on fonts installed on the host:

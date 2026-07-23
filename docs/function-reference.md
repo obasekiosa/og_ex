@@ -7,10 +7,9 @@ excludes private APIs.
 
 ## `OgEx`
 
-- `init/1` — initializes the endpoint plug and currently returns its options
-  unchanged.
-- `call/2` — fetches query parameters before routing so the reserved signed
-  image token is available during controller rendering.
+- `init/1` — initializes the optional backward-compatible endpoint plug.
+- `call/2` — eagerly fetches query parameters for applications that retain the
+  optional plug; new applications do not need it.
 
 ## Application internals (`OgEx&#46;Application`)
 
@@ -34,25 +33,29 @@ excludes private APIs.
 - generated `render/3` — forwards the consuming controller's render request to
   `OgEx.Controller.render/3`.
 - `render/3` — delegates ordinary renders to Phoenix; for an OgEx card, selects
-  either the normal page response or signed image response.
+  either the normal page response or signed image response and discovers the
+  signature lazily.
 - private `pop_card/1` — separates the `:og` card module from keyword-list or
   map template assigns.
 
 ## Configuration builder internals (`OgEx&#46;ConfigBuilder`)
 
-- `build/3` — evaluates metadata, creates the deterministic content version,
-  signs it, and returns a complete `%OgEx.Config{}`.
-- `verify/2` — verifies the signed token and confirms its card module and
-  version match the configuration rebuilt by the current request.
+- `build/3` — evaluates metadata, creates the deterministic content version and
+  compact 22-character HMAC, and returns a complete `%OgEx.Config{}`.
+- `verify/2` — rebuilds and securely compares the signature bound to the card,
+  version, and request path.
 - private `version/2` — hashes the card identity and either `version/1` output
   or full assigns into a URL-safe SHA-256 value.
-- private `image_url/2` — adds the signed token to the current absolute URL
+- private `signature/3` — creates a 128-bit truncated HMAC.
+- private `signing_key/1` — derives a domain-separated key from Phoenix's
+  `secret_key_base`.
+- private `image_url/2` — adds the compact signature to the current absolute URL
   while preserving unrelated query parameters.
 
 ## Request internals (`OgEx&#46;Request`)
 
-- `image_request?/1` — reports whether the reserved image token is present.
-- `token/1` — fetches and returns the token, or `nil`.
+- `image_request?/1` — lazily reports whether the reserved signature is present.
+- `signature/1` — lazily fetches and returns the signature, or `nil`.
 
 ## HTML internals (`OgEx&#46;HTML`)
 

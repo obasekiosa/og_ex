@@ -31,18 +31,21 @@ end
 defmodule OgEx.Request do
   @parameter "__og_ex"
 
-  def image_request?(%Plug.Conn{query_params: %{@parameter => _token}}),
-    do: true
+  def image_request?(conn), do: is_binary(signature(conn))
 
-  def image_request?(_conn), do: false
-
-  def token(%Plug.Conn{query_params: %{@parameter => token}}), do: token
+  def signature(conn) do
+    conn
+    |> Plug.Conn.fetch_query_params()
+    |> Map.fetch!(:query_params)
+    |> Map.get(@parameter)
+  end
 end
 
 defmodule OgEx do
   use Supervisor
 
-  @token_salt "og-ex-image"
+  @signature_salt "og-ex-image-v1"
+  @signature_bytes 16
 
   def start_link(options) do
     Supervisor.start_link(__MODULE__, options, name: __MODULE__)
@@ -65,12 +68,7 @@ defmodule OgEx do
     metadata = card.metadata(assigns)
     version = version(card, assigns)
 
-    signed_token =
-      Phoenix.Token.sign(
-        conn,
-        @token_salt,
-        {card, version}
-      )
+    signature = signature(conn, card, version)
 
     %OgEx.Config{
       card: card,
@@ -79,7 +77,7 @@ defmodule OgEx do
       width: card.__og_ex__(:width),
       height: card.__og_ex__(:height),
       version: version,
-      image_url: image_url(conn, signed_token)
+      image_url: image_url(conn, signature)
     }
   end
 
@@ -94,20 +92,42 @@ defmodule OgEx do
   end
 
   def verify_image_request(conn, %OgEx.Config{} = config) do
-    with token when is_binary(token) <- OgEx.Request.token(conn),
-         {:ok, {card, version}} <-
-           Phoenix.Token.verify(conn, @token_salt, token, max_age: 31_536_000),
-         true <- card == config.card,
-         true <- version == config.version do
+    expected = signature(conn, config.card, config.version)
+
+    with supplied when is_binary(supplied) <- OgEx.Request.signature(conn),
+         true <- byte_size(supplied) == byte_size(expected),
+         true <- Plug.Crypto.secure_compare(supplied, expected) do
       :ok
     else
-      _ -> {:error, :invalid_image_token}
+      _ -> {:error, :invalid_image_signature}
     end
   end
 
-  defp image_url(conn, signed_token) do
+  defp signature(conn, card, version) do
+    message =
+      :erlang.term_to_binary(
+        {card, version, conn.request_path},
+        [:deterministic]
+      )
+
+    :crypto.mac(:hmac, :sha256, signing_key(conn), message)
+    |> binary_part(0, @signature_bytes)
+    |> Base.url_encode64(padding: false)
+  end
+
+  defp signing_key(conn) do
+    secret_key_base =
+      conn.secret_key_base ||
+        conn.private
+        |> Map.fetch!(:phoenix_endpoint)
+        |> apply(:config, [:secret_key_base])
+
+    :crypto.mac(:hmac, :sha256, secret_key_base, @signature_salt)
+  end
+
+  defp image_url(conn, signature) do
     conn
-    |> Phoenix.Controller.current_url(%{"__og_ex" => signed_token})
+    |> Phoenix.Controller.current_url(%{"__og_ex" => signature})
   end
 end
 
@@ -140,7 +160,7 @@ defmodule OgEx.ImageResponse do
       |> put_resp_header("etag", ~s("#{config.version}"))
       |> send_resp(:ok, png)
     else
-      {:error, :invalid_image_token} ->
+      {:error, :invalid_image_signature} ->
         send_resp(conn, :not_found, "")
 
       {:error, _render_error} ->

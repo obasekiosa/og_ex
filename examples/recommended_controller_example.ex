@@ -37,10 +37,8 @@ end
 defmodule MyAppWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :my_app
 
-  # One application-wide installation. This does not add a public route.
-  # It recognizes OgEx's signed query parameter on any existing page route.
-  plug OgEx
-
+  # OgEx needs no endpoint plug or generated route. Its controller integration
+  # fetches the compact image signature lazily when render/3 is reached.
   plug MyAppWeb.Router
 end
 
@@ -208,7 +206,7 @@ end
 # WHAT OGEX WIRES UP INTERNALLY
 #
 # The application developer does not write the code below. It illustrates the
-# contract implemented by `use OgEx.Controller` and `plug OgEx`.
+# contract implemented by `use OgEx.Controller`.
 #
 # Normal page request:
 #
@@ -223,16 +221,16 @@ end
 #
 # The generated metadata points to a URL such as:
 #
-#   https://example.com/posts/42?__og_ex=SIGNED_VERSION
+#   https://example.com/posts/42?__og_ex=4K7fQxRfj2p0DqX_WLAzTA
 #
 # Image request:
 #
-#   GET /posts/42?__og_ex=SIGNED_VERSION
+#   GET /posts/42?__og_ex=4K7fQxRfj2p0DqX_WLAzTA
 #
 # The same router and controller action run, so `post` is loaded normally.
 # When the action reaches the OgEx-aware `render/3`, OgEx:
 #
-#   1. verifies the signed parameter;
+#   1. lazily fetches and verifies the compact signature;
 #   2. calls PostOgCard.render(%{post: post});
 #   3. converts the safe HEEx result to an HTML document;
 #   4. asks supervised headless Chromium to capture that document;
