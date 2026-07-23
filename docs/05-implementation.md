@@ -324,6 +324,18 @@ Recommended layers:
 Multi-node deployments either need a shared cache or must accept that each node
 may render the same deterministic card once.
 
+Cache implementations conform to `OgEx.Cache`:
+
+```elixir
+@callback fetch(key :: term()) :: {:ok, binary()} | :error
+@callback put(key :: term(), image :: binary()) :: :ok
+```
+
+`fetch/1` follows `Map.fetch/2`: it returns `{:ok, image}` for a hit and
+`:error` when the key is absent. Operational failures should be handled inside
+the cache adapter or introduced through a future, explicitly expanded callback
+contract; they must not be disguised as an absent key.
+
 ## Resource loading and security
 
 Remote image loading is an SSRF risk. A production loader should:

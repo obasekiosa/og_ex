@@ -238,6 +238,24 @@ ETag: "CONTENT_VERSION"
 Only successfully encoded images are cached. The cache behavior is replaceable
 for shared or persistent storage.
 
+Custom cache modules implement `OgEx.Cache`. Its lookup follows the conventional
+Elixir `fetch/1` contract:
+
+```elixir
+@impl OgEx.Cache
+def fetch(key) do
+  case lookup(key) do
+    {:found, image} -> {:ok, image}
+    :not_found -> :error
+  end
+end
+```
+
+`{:ok, image}` means the encoded image was found, while `:error` means the key
+is absent. The `[:og_ex, :cache, :miss]` telemetry event still uses “miss” as
+the conventional name for an unsuccessful cache lookup; it is not the return
+value of `fetch/1`.
+
 ## Current limitations
 
 - At least one font must be configured.

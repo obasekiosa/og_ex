@@ -93,13 +93,15 @@ excludes private APIs.
 
 ## `OgEx.Cache`
 
-- callback `fetch/1` — returns `{:ok, image}` when found or `:error` when absent.
+- callback `fetch/1` — follows `Map.fetch/2`, returning `{:ok, image}` when
+  found or `:error` when absent.
 - callback `put/2` — stores an encoded image.
 
 ## `OgEx.Cache.ETS`
 
 - `start_link/1` — starts the cache table owner.
-- `fetch/1` — performs a concurrent direct ETS lookup.
+- `fetch/1` — performs a concurrent direct ETS lookup and returns
+  `{:ok, image}` or `:error`.
 - `put/2` — inserts or replaces an ETS cache entry.
 - `init/1` — creates the named, concurrent-read ETS table.
 

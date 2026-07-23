@@ -5,6 +5,9 @@ defmodule OgEx.Cache do
 
   @doc """
   Retrieves an encoded image for a renderer cache key.
+
+  Returns `{:ok, image}` when the key exists and `:error` when it is absent,
+  following the convention established by `Map.fetch/2`.
   """
   @callback fetch(key :: term()) :: {:ok, binary()} | :error
 
