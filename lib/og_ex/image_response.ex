@@ -43,7 +43,9 @@ defmodule OgEx.ImageResponse do
   # Looks up the fully qualified image key and renders only on a cache miss.
   # Failed renders are deliberately never written to the cache.
   defp cached_or_render(config) do
-    cache = Application.fetch_env!(:og_ex, :cache)
+    # A dependency's config files are not imported into its host application,
+    # so retain the built-in adapter as a runtime default.
+    cache = Application.get_env(:og_ex, :cache, OgEx.Cache.ETS)
 
     # Dimensions and format are included even though they normally come from
     # the card module. This prevents collisions if a module changes those
@@ -70,7 +72,9 @@ defmodule OgEx.ImageResponse do
   # Invokes the configured renderer with loaded fonts and emits successful
   # render duration/output-size telemetry.
   defp render(config, html) do
-    renderer = Application.fetch_env!(:og_ex, :renderer)
+    # Host applications can replace Takumi without being required to repeat
+    # the package's default configuration.
+    renderer = Application.get_env(:og_ex, :renderer, OgEx.Renderer.Takumi)
     started_at = System.monotonic_time()
 
     # Fonts are loaded on a cache miss only. A future native font registry can

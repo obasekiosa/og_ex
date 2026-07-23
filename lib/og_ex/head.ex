@@ -17,14 +17,16 @@ defmodule OgEx.Head do
     |> register_before_send(&inject_metadata/1)
   end
 
-  # Rewrites only complete binary HTML responses. Other body shapes and content
-  # types are returned unchanged to avoid corrupting streams or files.
+  # Rewrites complete binary or iodata HTML responses. Other body shapes and
+  # content types are returned unchanged to avoid corrupting streams or files.
   defp inject_metadata(conn) do
-    # Only complete, binary HTML bodies can be safely rewritten. Streaming,
-    # file, JSON, and already-compressed responses are intentionally left alone.
+    # Phoenix root layouts commonly produce iodata, so normalize complete HTML
+    # bodies before searching them. Streaming, file, JSON, and compressed
+    # responses are intentionally left alone.
     with [content_type | _] <- get_resp_header(conn, "content-type"),
          true <- String.starts_with?(content_type, "text/html"),
-         body when is_binary(body) <- conn.resp_body,
+         body when is_binary(body) or is_list(body) <- conn.resp_body,
+         body <- IO.iodata_to_binary(body),
          true <- String.contains?(String.downcase(body), "</head>") do
       tags = OgEx.Meta.to_html(conn.assigns.og_ex)
       updated_body = replace_closing_head(body, tags)

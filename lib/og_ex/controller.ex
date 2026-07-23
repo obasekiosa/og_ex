@@ -15,9 +15,13 @@ defmodule OgEx.Controller do
   """
   defmacro __using__(_options) do
     quote do
-      # A locally defined function takes precedence over Phoenix.Controller's
-      # imported render/3. Calls without `:og` are delegated unchanged, so
-      # installing OgEx does not alter ordinary controller renders.
+      # Phoenix controller modules normally import `render/3`. Explicitly
+      # exclude that import before defining the OgEx-aware local function so
+      # consuming controllers compile without an import conflict.
+      import Phoenix.Controller, except: [render: 3]
+
+      # Calls without `:og` are delegated unchanged, so installing OgEx does
+      # not alter ordinary controller renders.
       @doc """
       Renders a Phoenix page or its OgEx image representation.
 
@@ -51,9 +55,9 @@ defmodule OgEx.Controller do
         # normal Phoenix page template is never rendered on this branch.
         OgEx.ImageResponse.send(conn, config)
       else
-        # Metadata is registered before Phoenix renders the page. A
-        # before-send callback injects it only after the root layout has
-        # produced the complete HTML document.
+        # Register metadata before Phoenix renders and sends the response. The
+        # callback runs from `send_resp/3`, after the root layout has produced
+        # the complete HTML document.
         conn
         |> OgEx.Head.put_config(config)
         |> Phoenix.Controller.render(template, page_assigns)

@@ -1,6 +1,11 @@
 defmodule OgEx.RequestLifecycleTest do
   use ExUnit.Case, async: false
 
+  test "controller integration replaces Phoenix's imported render/3" do
+    Code.ensure_loaded!(OgEx.TestController)
+    assert function_exported?(OgEx.TestController, :render, 3)
+  end
+
   import Plug.Conn
   import Plug.Test
 
@@ -68,7 +73,7 @@ defmodule OgEx.RequestLifecycleTest do
     assert <<137, "PNG\r\n", 26, "\n", _rest::binary>> = response.resp_body
   end
 
-  test "metadata is escaped and inserted before the closing head" do
+  test "metadata is escaped and inserted into an iodata HTML response" do
     config =
       page_conn()
       |> OgEx.ConfigBuilder.build(OgEx.TestCard, %{title: ~s(<Unsafe "title">)})
@@ -77,7 +82,7 @@ defmodule OgEx.RequestLifecycleTest do
       page_conn()
       |> OgEx.Head.put_config(config)
       |> put_resp_content_type("text/html")
-      |> send_resp(200, "<html><head></head><body>Page</body></html>")
+      |> send_resp(200, ["<html>", "<head></head>", ["<body>", "Page", "</body>"], "</html>"])
 
     assert response.resp_body =~
              ~s(<meta property="og:title" content="&lt;Unsafe &quot;title&quot;&gt;">)
