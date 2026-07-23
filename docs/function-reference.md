@@ -93,7 +93,7 @@ excludes private APIs.
 
 ## `OgEx.Cache`
 
-- callback `fetch/1` — returns a cached image or `:miss`.
+- callback `fetch/1` — returns `{:ok, image}` when found or `:error` when absent.
 - callback `put/2` — stores an encoded image.
 
 ## `OgEx.Cache.ETS`

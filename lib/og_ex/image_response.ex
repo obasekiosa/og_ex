@@ -55,7 +55,7 @@ defmodule OgEx.ImageResponse do
         :telemetry.execute([:og_ex, :cache, :hit], %{}, %{card: config.card})
         {:ok, image}
 
-      :miss ->
+      :error ->
         :telemetry.execute([:og_ex, :cache, :miss], %{}, %{card: config.card})
 
         # Cache only complete, successfully encoded image binaries.

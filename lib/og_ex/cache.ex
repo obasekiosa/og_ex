@@ -6,7 +6,7 @@ defmodule OgEx.Cache do
   @doc """
   Retrieves an encoded image for a renderer cache key.
   """
-  @callback fetch(key :: term()) :: {:ok, binary()} | :miss
+  @callback fetch(key :: term()) :: {:ok, binary()} | :error
 
   @doc """
   Stores an encoded image under a renderer cache key.

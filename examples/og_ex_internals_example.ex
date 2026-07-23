@@ -155,7 +155,7 @@ defmodule OgEx.ImageResponse do
       {:ok, png} ->
         {:ok, png}
 
-      :miss ->
+      :error ->
         with {:ok, html} <- OgEx.HTML.render(config),
              {:ok, png} <-
                OgEx.Renderer.Chromium.screenshot(
@@ -287,7 +287,7 @@ defmodule OgEx.Cache do
   def fetch(key) do
     case :ets.lookup(@table, key) do
       [{^key, png}] -> {:ok, png}
-      [] -> :miss
+      [] -> :error
     end
   end
 

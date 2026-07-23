@@ -16,7 +16,7 @@ defmodule OgEx.Cache.ETS do
   end
 
   @doc """
-  Retrieves an image directly from ETS, returning `:miss` when absent.
+  Retrieves an image directly from ETS, returning `:error` when absent.
   """
   @impl OgEx.Cache
   def fetch(key) do
@@ -24,7 +24,7 @@ defmodule OgEx.Cache.ETS do
     # requests to hit the cache without serializing through one process.
     case :ets.lookup(@table, key) do
       [{^key, image}] -> {:ok, image}
-      [] -> :miss
+      [] -> :error
     end
   end
 
