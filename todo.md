@@ -26,6 +26,72 @@ This initially provides single-flight behavior within one BEAM node. Distributed
 coalescing can remain the responsibility of a future shared-cache adapter or
 distributed lock implementation.
 
+## Dedicated image routes
+
+Give cards declared through the proposed controller DSL a dedicated generated
+image URL instead of identifying image requests through the page URL's query
+string:
+
+```elixir
+og_card :show, MyAppWeb.PostOgCard
+```
+
+```text
+Page:  /posts/42
+Image: /posts/42/opengraph-image/SIGNED_VERSION
+```
+
+Implementation requirements:
+
+- Generate or install the image route from the compile-time controller/action
+  declaration without requiring an application-owned image controller.
+- Preserve path parameters so card loaders receive the same resource identity
+  as the page action.
+- Keep the image handler separate from the page action so image requests never
+  execute HTML-only controller work.
+- Bind the signed version to the card, controller action, canonical path,
+  relevant parameters, dimensions, format, and content version.
+- Reject tokens replayed against another route or card.
+- Decide how generated routes integrate with Phoenix route helpers and verified
+  routes.
+- Define conflict detection and helpful compile-time errors when an application
+  already owns the generated path.
+- Support configurable route suffixes while providing one stable default.
+- Preserve the existing query-string handler during migration or provide a
+  documented compatibility path.
+- Add routing tests for static, dynamic, nested, scoped, and conflicting routes.
+
+## Static Open Graph and Twitter image files
+
+Allow a controller action to select an existing static file when image
+generation is unnecessary:
+
+```elixir
+og_image :about, "images/about-og.png"
+twitter_image :about, "images/about-twitter.png"
+```
+
+Implementation requirements:
+
+- Resolve files from the host application's configured `priv/static` roots.
+- Support PNG, JPEG, WebP, GIF, and SVG subject to the target platform's
+  compatibility requirements.
+- Read image dimensions and media type automatically for generated metadata.
+- Produce cache-busted URLs using the application's static asset digest when
+  available.
+- Reuse a single file for Open Graph and Twitter metadata by default while
+  allowing separate files when their aspect ratios or formats differ.
+- Allow explicit alt text and Twitter card type without requiring a renderer
+  module.
+- Validate missing files, unsupported media types, and invalid image headers
+  during compilation when the asset is available.
+- Serve files through the application's existing static asset pipeline instead
+  of passing them through Takumi or the OgEx image cache.
+- Define precedence and compile-time errors when an action declares both a
+  generated card and a static image.
+- Add tests for digested assets, separate Twitter images, dimensions, metadata,
+  missing files, and production endpoint prefixes.
+
 ## Next version: local and external images
 
 Allow ordinary card HEEx to include local and remote image sources:
