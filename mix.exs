@@ -54,6 +54,9 @@ defmodule OgEx.MixProject do
           "native/og_ex_native/Cargo.toml",
           "native/og_ex_native/Cargo.lock",
           "native/og_ex_native/.cargo",
+          "artifacts",
+          "docs/function-reference.md",
+          "docs/06-distribution.md",
           "mix.exs",
           "README.md",
           "LICENSE"
@@ -63,10 +66,19 @@ defmodule OgEx.MixProject do
 
   defp docs do
     [
-      # Use the public module as the stable landing page. README is still
-      # included as a full guide in the extras sidebar.
+      # HexDocs should expose stable user and maintainer guides. Early API
+      # explorations remain in the repository but do not belong in the
+      # published documentation sidebar.
       main: "OgEx",
-      extras: ["README.md"] ++ Path.wildcard("docs/*.md")
+      extras: [
+        "README.md",
+        "docs/function-reference.md",
+        "docs/06-distribution.md"
+      ],
+      groups_for_extras: [
+        Guides: ["README.md", "docs/function-reference.md"],
+        Maintainers: ["docs/06-distribution.md"]
+      ]
     ]
   end
 end
