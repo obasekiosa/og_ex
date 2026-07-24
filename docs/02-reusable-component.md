@@ -31,7 +31,7 @@ defmodule MyAppWeb.PostCard do
 
   def render(assigns) do
     ~OG"""
-    <div style="display: flex; width: 1200px; height: 630px;
+    <div style="display: flex; width: 100%; height: 100%;
                 padding: 72px; background: #0f172a; color: white;">
       <div style="display: flex; flex-direction: column; gap: 24px;">
         <img src={@post.author.avatar_url}

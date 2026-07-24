@@ -16,7 +16,7 @@ def show(conn, %{"id" => id}) do
     image_alt: "Social card for #{post.title}",
     card: fn assigns ->
       ~OG"""
-      <div style="display: flex; width: 1200px; height: 630px;
+      <div style="display: flex; width: 100%; height: 100%;
                   padding: 72px; background: #111827; color: white;">
         <div style="display: flex; flex-direction: column;">
           <p style="font-size: 28px;">#{assigns.site_name}</p>

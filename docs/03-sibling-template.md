@@ -31,7 +31,7 @@ lib/my_app_web/controllers/post_html/show_og.og.heex
 `show_og.og.heex`:
 
 ```heex
-<div style="display: flex; width: 1200px; height: 630px;
+<div style="display: flex; width: 100%; height: 100%;
             padding: 72px; background: #111827; color: white;">
   <div style="display: flex; flex-direction: column; gap: 20px;">
     <p style="font-size: 26px;">example.com</p>

@@ -137,8 +137,8 @@ defmodule MyAppWeb.PostOgCard do
       }
 
       .card {
-        width: 1200px;
-        height: 630px;
+        width: 100%;
+        height: 100%;
         padding: 72px;
         display: flex;
         flex-direction: column;
@@ -175,6 +175,10 @@ end
 
 This is ordinary HEEx, HTML, and CSS. OgEx extracts card-local `<style>` blocks
 and sends them through Takumi's selector and cascade engine.
+
+The dimensions declared in `use OgEx.Card` are the single source of truth.
+OgEx applies them to the renderer viewport and generated HTML document, while
+the card root fills that viewport with `width: 100%` and `height: 100%`.
 
 ## Renderer
 

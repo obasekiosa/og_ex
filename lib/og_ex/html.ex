@@ -31,9 +31,14 @@ defmodule OgEx.HTML do
              margin: 0;
              overflow: hidden;
            }
+
+           [data-og-ex-root] {
+             width: 100%;
+             height: 100%;
+           }
          </style>
        </head>
-       <body>#{body}</body>
+       <body><div data-og-ex-root>#{body}</div></body>
      </html>
      """}
   rescue

@@ -42,6 +42,19 @@ defmodule OgEx.RequestLifecycleTest do
     assert config.metadata.title == "Hello"
   end
 
+  test "generated HTML derives its viewport and root size from the card" do
+    config =
+      page_conn()
+      |> OgEx.ConfigBuilder.build(OgEx.TestCard, %{title: "Hello"})
+
+    assert {:ok, html} = OgEx.HTML.render(config)
+    assert html =~ "width: 1200px"
+    assert html =~ "height: 630px"
+    assert html =~ "[data-og-ex-root]"
+    assert html =~ "width: 100%"
+    assert html =~ "height: 100%"
+  end
+
   test "the signed image request returns a cached immutable PNG" do
     page_config =
       page_conn()
