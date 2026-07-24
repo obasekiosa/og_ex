@@ -94,6 +94,11 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      # Both the dry run and final publish ask Hex to identify the package
+      # owner, so expose the protected environment secret to the whole job.
+      HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+
     steps:
       - name: Check out tagged source
         uses: actions/checkout@v6
@@ -142,5 +147,3 @@ jobs:
 
       - name: Publish package and documentation
         run: mix hex.publish --yes
-        env:
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
