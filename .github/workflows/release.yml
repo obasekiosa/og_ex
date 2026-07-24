@@ -104,6 +104,11 @@ jobs:
           otp-version: "28"
           elixir-version: "1.19"
 
+      - name: Install the pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.91.0"
+
       - name: Install Hex and dependencies
         run: |
           mix local.hex --force
@@ -116,7 +121,17 @@ jobs:
           # Remove them before loading OgEx.Native so this run verifies only the
           # archives produced by the build jobs immediately above.
           rm checksum-Elixir.OgEx.Native.exs
-          mix rustler_precompiled.download OgEx.Native --all
+
+          # A clean stable checkout cannot load OgEx.Native without checksums.
+          # Compile it once through Rustler to create the metadata consumed by
+          # the downloader, then avoid reconfiguring the application while the
+          # checksum file is absent.
+          OG_EX_BUILD=true mix compile
+          mix rustler_precompiled.download OgEx.Native --all --no-config
+
+          # Discard the source-built module. The verification step must compile
+          # again and load the downloaded release archive through its checksum.
+          mix clean
 
       - name: Verify the released native library
         run: |
