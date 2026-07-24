@@ -81,19 +81,46 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          body: |
-            OgEx 0.1.0 is the first experimental preview of embedded Open Graph
-            and Twitter/X card rendering for Phoenix controllers.
-
-            Highlights:
-            - Define card metadata and presentation with HEEx and CSS.
-            - Render PNG, JPEG, WebP, and vector SVG output through Takumi.
-            - Serve signed image responses from the same Phoenix route.
-            - Reuse generated images through the built-in ETS cache.
-            - Download checksum-verified native binaries on supported Linux,
-              macOS, and Windows targets.
-
-            Install from Hex with `{:og_ex, "~> 0.1"}`.
-
-            The 0.x API is experimental and may change between minor releases.
+          generate_release_notes: true
           files: ${{ steps.build_crate.outputs.file-path }}
+
+  publish_hex:
+    name: Verify and publish to Hex
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build_release
+    runs-on: ubuntu-22.04
+    environment: hex-production
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+
+      - name: Install Erlang and Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          elixir-version: "1.19"
+
+      - name: Install Hex and dependencies
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Generate native checksum metadata
+        run: mix rustler_precompiled.download OgEx.Native --all
+
+      - name: Verify the released native library
+        run: |
+          mix compile --warnings-as-errors
+          mix test
+          mix docs
+          mix hex.publish --dry-run
+
+      - name: Publish package and documentation
+        run: mix hex.publish --yes
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
