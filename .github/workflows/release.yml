@@ -111,7 +111,12 @@ jobs:
           mix deps.get
 
       - name: Generate native checksum metadata
-        run: mix rustler_precompiled.download OgEx.Native --all
+        run: |
+          # A release tag may contain checksums from an earlier artifact build.
+          # Remove them before loading OgEx.Native so this run verifies only the
+          # archives produced by the build jobs immediately above.
+          rm checksum-Elixir.OgEx.Native.exs
+          mix rustler_precompiled.download OgEx.Native --all
 
       - name: Verify the released native library
         run: |
