@@ -2,7 +2,7 @@ defmodule OgEx.MixProject do
   use Mix.Project
 
   @version "0.1.0-dev"
-  @source_url "https://github.com/example/og_ex"
+  @source_url "https://github.com/obasekiosa/og_ex"
 
   def project do
     [
@@ -32,6 +32,7 @@ defmodule OgEx.MixProject do
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_view, "~> 1.0"},
       {:plug, "~> 1.15"},
+      {:rustler_precompiled, "~> 0.9"},
       {:rustler, "~> 0.38", runtime: false},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
@@ -46,15 +47,17 @@ defmodule OgEx.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: [
-        "lib",
-        "native/og_ex_native/src",
-        "native/og_ex_native/Cargo.toml",
-        "native/og_ex_native/Cargo.lock",
-        "mix.exs",
-        "README.md",
-        "LICENSE"
-      ]
+      files:
+        [
+          "lib",
+          "native/og_ex_native/src",
+          "native/og_ex_native/Cargo.toml",
+          "native/og_ex_native/Cargo.lock",
+          "native/og_ex_native/.cargo",
+          "mix.exs",
+          "README.md",
+          "LICENSE"
+        ] ++ Path.wildcard("checksum-*.exs")
     ]
   end
 
