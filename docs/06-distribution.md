@@ -28,16 +28,15 @@ Source builds currently require the Rust version pinned in
 
 ## Supported release targets
 
-The release workflow builds NIF ABI 2.15 archives for:
+The `0.1` release workflow builds NIF ABI 2.15 archives for:
 
 - Linux GNU on x86-64 and ARM64.
 - Linux musl on x86-64 and ARM64.
-- macOS on Intel and Apple Silicon.
-- Windows MSVC on x86-64.
 
 NIF 2.15 remains compatible with newer NIF 2.x runtimes. New targets can be
 added to the workflow and native-module configuration without changing the
-Elixir renderer API.
+Elixir renderer API. macOS and Windows currently use the documented source-build
+path until their precompiled CI targets are validated.
 
 ## Maintainer release flow
 
