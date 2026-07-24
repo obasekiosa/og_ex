@@ -57,11 +57,11 @@ During local package development:
 {:og_ex, path: "../og-ex"}
 ```
 
-Stable releases download a checksum-verified precompiled NIF on supported
-x86-64 and ARM64 Linux GNU/musl targets, so those consuming applications do not
-need Rust. Other targets and forced source builds require the Rust version
-pinned in `rust-toolchain.toml` because Takumi 2.4 requires it. Set
-`OG_EX_BUILD=true` to use the source-build path.
+Stable releases download a checksum-verified precompiled NIF for supported
+Linux, macOS, and Windows targets, so consuming applications do not need Rust.
+Development versions and forced source builds require the Rust version pinned in
+`rust-toolchain.toml` because Takumi 2.4 requires it. Set `OG_EX_BUILD=true`
+when explicitly testing the source-build path.
 
 No endpoint plug or generated route is required. The controller integration
 fetches the reserved query parameter lazily only when `render/3` is reached.
