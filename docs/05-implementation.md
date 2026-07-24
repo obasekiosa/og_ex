@@ -39,6 +39,10 @@ All public APIs normalize to:
 }
 ```
 
+The format may be `:png`, `:jpeg`, `:webp`, or `:svg`. Raster formats use
+Takumi's bitmap renderer and encoder. SVG uses the same parsed HTML, stylesheet,
+fonts, and layout tree but emits vector primitives through Takumi's SVG backend.
+
 ## Request lifecycle
 
 ### HTML request

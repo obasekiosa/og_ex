@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 regex-lite = "0.1"
 rustler = "0.38"
-takumi = { version = "2.4", features = ["from-html", "raster-backend", "rayon", "woff", "woff2"] }
+takumi = { version = "2.4", features = ["from-html", "raster-backend", "svg-backend", "rayon", "woff", "woff2"] }
 
 # Takumi 2.4's HTML helper targets html5ever 0.39. The crates.io sparse index
 # can lag the synchronized html5ever workspace release, so pin the matching

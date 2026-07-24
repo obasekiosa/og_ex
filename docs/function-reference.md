@@ -91,8 +91,8 @@ excludes private APIs.
   HTML/native rendering pipeline on a miss.
 - private `render/2` — loads fonts, calls the configured renderer, and emits
   successful-render telemetry.
-- private `content_type/1` — maps `:png`, `:jpeg`, and `:webp` to their HTTP
-  media types.
+- private `content_type/1` — maps `:png`, `:jpeg`, `:webp`, and `:svg` to their
+  HTTP media types.
 
 ## `OgEx.Cache`
 
@@ -134,4 +134,5 @@ These functions live in `native/og_ex_native/src/lib.rs`.
   layout and painting, and encodes the resulting bitmap.
 - private `extract_stylesheets/1` — extracts card-local `<style>` contents
   because Takumi's HTML helper discards style elements from the node tree.
-- private `output_format/1` — maps Elixir atoms to Takumi encoder settings.
+- private `output_format/1` — maps raster Elixir atoms to Takumi encoder
+  settings; SVG bypasses raster encoding and uses Takumi's vector backend.

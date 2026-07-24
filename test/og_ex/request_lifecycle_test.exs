@@ -86,6 +86,35 @@ defmodule OgEx.RequestLifecycleTest do
     assert <<137, "PNG\r\n", 26, "\n", _rest::binary>> = response.resp_body
   end
 
+  test "an SVG card returns a vector image response" do
+    page_config =
+      page_conn()
+      |> OgEx.ConfigBuilder.build(OgEx.TestSvgCard, %{title: "Vector"})
+
+    signature =
+      page_config.image_url
+      |> URI.parse()
+      |> Map.fetch!(:query)
+      |> URI.decode_query()
+      |> Map.fetch!("__og_ex")
+
+    image_conn =
+      :get
+      |> conn("/posts/42?locale=en&__og_ex=#{URI.encode_www_form(signature)}")
+      |> endpoint_conn()
+
+    image_config =
+      OgEx.ConfigBuilder.build(image_conn, OgEx.TestSvgCard, %{title: "Vector"})
+
+    response = OgEx.ImageResponse.send(image_conn, image_config)
+
+    assert response.status == 200
+    assert get_resp_header(response, "content-type") == ["image/svg+xml"]
+    assert response.resp_body =~ ~s(<svg xmlns="http://www.w3.org/2000/svg")
+    assert response.resp_body =~ ~s(width="600")
+    assert response.resp_body =~ ~s(height="600")
+  end
+
   test "metadata is escaped and inserted into an iodata HTML response" do
     config =
       page_conn()

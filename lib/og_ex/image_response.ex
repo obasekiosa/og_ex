@@ -109,4 +109,5 @@ defmodule OgEx.ImageResponse do
   defp content_type(:png), do: "image/png"
   defp content_type(:jpeg), do: "image/jpeg"
   defp content_type(:webp), do: "image/webp"
+  defp content_type(:svg), do: "image/svg+xml"
 end

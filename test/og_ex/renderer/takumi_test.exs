@@ -45,4 +45,35 @@ defmodule OgEx.Renderer.TakumiTest do
 
     assert reason =~ "no fonts configured"
   end
+
+  test "renders HTML and CSS as a vector SVG document" do
+    html = """
+    <main class="card">Vector OgEx</main>
+    <style>
+      .card {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        background: linear-gradient(135deg, #1746d1, #ff6b4a);
+        color: white;
+        font: 64px sans-serif;
+      }
+    </style>
+    """
+
+    assert {:ok, svg} =
+             OgEx.Renderer.Takumi.render(
+               html,
+               width: 600,
+               height: 600,
+               format: :svg,
+               fonts: OgEx.Fonts.load()
+             )
+
+    assert svg =~ ~s(<svg xmlns="http://www.w3.org/2000/svg")
+    assert svg =~ ~s(width="600")
+    assert svg =~ ~s(height="600")
+    assert svg =~ "</svg>"
+  end
 end

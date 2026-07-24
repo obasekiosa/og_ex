@@ -8,8 +8,9 @@ defmodule OgEx.Renderer.Takumi do
   @doc """
   Renders an HTML document using Takumi.
 
-  Required options are `:width` and `:height`. `:format` defaults to `:png`,
-  and `:fonts` accepts a list of loaded font binaries.
+  Required options are `:width` and `:height`. `:format` accepts `:png`,
+  `:jpeg`, `:webp`, or `:svg` and defaults to `:png`. `:fonts` accepts a list
+  of loaded font binaries.
   """
   @impl true
   def render(html, options) when is_binary(html) and is_list(options) do

@@ -37,9 +37,9 @@ defmodule OgEx.Card do
   @doc """
   Configures a module as an OgEx card.
 
-  Supported options are `:width`, `:height`, and `:format`. The macro imports
-  `Phoenix.Component`, records the render dimensions, and installs the
-  `OgEx.Card` behaviour.
+  Supported options are `:width`, `:height`, and `:format`. Formats may be
+  `:png`, `:jpeg`, `:webp`, or `:svg`. The macro imports `Phoenix.Component`,
+  records the render dimensions, and installs the `OgEx.Card` behaviour.
   """
   defmacro __using__(options) do
     width = Keyword.get(options, :width, 1200)

@@ -6,9 +6,9 @@ use takumi::{
     from_html,
     prelude::{
         FontResource, Fonts, FromHtmlOptions, OutputFormat, Quality, RenderOptions, StyleSheet,
-        Viewport,
+        SvgOptions, Viewport,
     },
-    render as render_node, write_image,
+    render as render_node, render_svg, write_image,
 };
 
 // Atoms are initialized once by Rustler and reused without allocating strings
@@ -19,7 +19,8 @@ mod atoms {
         error,
         png,
         jpeg,
-        webp
+        webp,
+        svg
     }
 }
 
@@ -96,7 +97,23 @@ fn render(html: &str, options: &NativeRenderOptions<'_>) -> Result<Vec<u8>, Stri
         );
     }
 
-    // The same node tree, font context, and stylesheet drive layout and paint.
+    // SVG uses the same parsed node tree, font context, stylesheet, and layout
+    // engine as raster output, then emits vector primitives and glyph paths.
+    if options.format == atoms::svg() {
+        let svg_options = SvgOptions::builder()
+            .viewport(Viewport::new((options.width, options.height)))
+            .node(node)
+            .fonts(&fonts)
+            .stylesheet(Arc::new(stylesheet))
+            .build();
+
+        return render_svg(svg_options)
+            .map(String::into_bytes)
+            .map_err(|error| error.to_string());
+    }
+
+    // The same node tree, font context, and stylesheet drive raster layout and
+    // painting.
     let render_options = RenderOptions::builder()
         .viewport(Viewport::new((options.width, options.height)))
         .node(node)
@@ -150,7 +167,7 @@ fn output_format(format: Atom) -> Result<OutputFormat, String> {
             quality: Quality::new(85),
         })
     } else {
-        Err("format must be :png, :jpeg, or :webp".to_string())
+        Err("format must be :png, :jpeg, :webp, or :svg".to_string())
     }
 }
 
