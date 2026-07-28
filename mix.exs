@@ -58,6 +58,7 @@ defmodule OgEx.MixProject do
           "native/og_ex_native/.cargo",
           "artifacts",
           "docs/function-reference.md",
+          "docs/internal-architecture.md",
           "docs/06-distribution.md",
           "mix.exs",
           "README.md",
@@ -75,12 +76,28 @@ defmodule OgEx.MixProject do
       extras: [
         "README.md",
         "docs/function-reference.md",
+        "docs/internal-architecture.md",
         "docs/06-distribution.md"
       ],
       groups_for_extras: [
         Guides: ["README.md", "docs/function-reference.md"],
-        Maintainers: ["docs/06-distribution.md"]
-      ]
+        Maintainers: ["docs/internal-architecture.md", "docs/06-distribution.md"]
+      ],
+      groups_for_modules: [
+        "Controller API": [OgEx, OgEx.Controller, OgEx.Card],
+        "Image API": [OgEx.Image, OgEx.Image.Source, OgEx.Image.Resource],
+        "Extension points": [
+          OgEx.Renderer,
+          OgEx.Renderer.Takumi,
+          OgEx.ResourceLoader,
+          OgEx.ResourceLoader.Default,
+          OgEx.ResourceLoader.Remote,
+          OgEx.Cache,
+          OgEx.Cache.ETS
+        ],
+        "Runtime internals": [OgEx.Config, OgEx.Resources, OgEx.ResourceCache]
+      ],
+      skip_undefined_reference_warnings_on: ["docs/internal-architecture.md"]
     ]
   end
 end

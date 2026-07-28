@@ -1,216 +1,345 @@
-# Function Reference
+# Public API reference
 
-This reference covers every function implemented by the OgEx Elixir library and
-Takumi NIF. Public functions also have ExDoc documentation in their source
-modules. Private functions are documented here because ExDoc intentionally
-excludes private APIs.
+This guide summarizes the API used by Phoenix applications and extension
+modules. Internal request dispatch, signatures, cache-key construction, and the
+native bridge are covered in [Internal architecture](internal-architecture.md).
 
-## `OgEx`
+## Controller integration
 
-- `private_asset/1` — returns an opaque private-image source for card HEEx.
-- `init/1` — initializes the optional backward-compatible endpoint plug.
-- `call/2` — eagerly fetches query parameters for applications that retain the
-  optional plug; new applications do not need it.
+### `use OgEx.Controller`
 
-## Application internals (`OgEx&#46;Application`)
+Install this after the application's normal controller setup:
 
-- `start/2` — logs wildcard remote policy when configured and starts the
-  generated-image and resource caches.
-- private `warn_for_global_remote_access/0` — emits the once-per-startup SSRF
-  warning for `allowed_hosts: ["*"]`.
+```elixir
+defmodule MyAppWeb.PostController do
+  use MyAppWeb, :controller
+  use OgEx.Controller
+end
+```
+
+The macro replaces the controller-local `render/3`. Renders without an `:og`
+option keep normal Phoenix behavior.
+
+### Generated card declaration
+
+Pass an `OgEx.Card` module and the assigns used by that module:
+
+```elixir
+render(conn, :show,
+  post: post,
+  og: MyAppWeb.PostOgCard
+)
+```
+
+The same controller action handles the normal HTML request and the later signed
+image request. The Phoenix page template is skipped on the image branch.
+
+### Direct image declaration
+
+Pass a keyword list or map containing `:title` and `:image`:
+
+```elixir
+render(conn, :show,
+  post: post,
+  og: [
+    title: post.title,
+    description: post.summary,
+    image: "/images/post-og.png",
+    image_alt: "Preview for #{post.title}",
+    twitter_card: "summary_large_image"
+  ]
+)
+```
+
+Supported fields:
+
+| Field | Required | Purpose |
+| --- | --- | --- |
+| `:title` | yes | Open Graph and Twitter/X title |
+| `:image` | yes | Public path, external URL, or `{:private, path}` |
+| `:description` | no | Open Graph and Twitter/X description |
+| `:type` | no | Open Graph type; defaults to `"website"` |
+| `:image_alt` | no | Open Graph and Twitter/X image alt text |
+| `:twitter_card` | no | Twitter/X card type; defaults to `"summary_large_image"` |
+| `:twitter_image` | no | Separate public, private, or external Twitter/X image |
+| `:image_width` | no | Explicit width, mainly for direct external images |
+| `:image_height` | no | Explicit height, mainly for direct external images |
+
+Direct local resources are currently read and verified during the HTML request.
+Direct external resources are not requested by OgEx.
 
 ## `OgEx.Card`
 
-- `__using__/1` — imports Phoenix component functionality, installs the card
-  behaviour, and records width, height, and output format.
-- generated `__og_ex__/1` — returns the configured `:width`, `:height`, or
-  `:format` for a card module.
-- callback `metadata/1` — returns page and image metadata for the current
-  assigns.
-- callback `render/1` — returns the card's HEEx safe data.
-- optional callback `version/1` — returns stable content data used for the image
-  URL, ETag, and cache key.
+`OgEx.Card` defines generated-card callbacks and provides the setup macro.
 
-## `OgEx.Controller`
+### `use OgEx.Card`
 
-- `__using__/1` — installs a controller-local OgEx-aware `render/3`.
-- generated `render/3` — forwards the consuming controller's render request to
-  `OgEx.Controller.render/3`.
-- `render/3` — delegates ordinary renders to Phoenix; for an OgEx card, selects
-  either the normal page response or signed image response and discovers the
-  signature lazily.
-- private `pop_card/1` — separates the `:og` declaration from keyword-list or
-  map template assigns.
+```elixir
+use OgEx.Card, width: 1200, height: 630, format: :png
+```
 
-## Configuration builder internals (`OgEx&#46;ConfigBuilder`)
+Options:
 
-- `build/3` — builds either a generated-card config or a direct public,
-  private, or remote image config.
-- `verify/2` — rebuilds signatures and returns the authenticated Open Graph or
-  Twitter image role.
-- private `direct_image!/2` — normalizes a direct declaration and loads local
-  bytes while leaving external URLs unfetched.
-- private `load_direct!/1` — turns a loader error into a declaration error.
-- private `direct_url/4` — selects a static, external, or signed private URL.
-- private `dimension/2` and `format/1` — read optional inspected properties.
-- private `generated_version/2` — hashes generated-card version data.
-- private `direct_version/2` — hashes both direct image identities.
-- private `resource_identity/1` — reduces a resource to a digest or URL.
-- private `identity/2` and `resource_for/2` — reconstruct role-bound signature
-  identity.
-- private `signature/3` — creates a route- and role-bound 128-bit HMAC.
-- private `signing_key/1` — derives a domain-separated key from Phoenix's
-  `secret_key_base`.
-- private `image_url/2` — adds the compact signature to the current absolute URL
-  while preserving unrelated query parameters.
+| Option | Default | Values |
+| --- | ---: | --- |
+| `:width` | `1200` | positive integer |
+| `:height` | `630` | positive integer |
+| `:format` | `:png` | `:png`, `:jpeg`, `:webp`, `:svg` |
 
-## Request internals (`OgEx&#46;Request`)
+The macro imports `Phoenix.Component` and installs the callbacks below.
 
-- `image_request?/1` — lazily reports whether the reserved signature is present.
-- `signature/1` — lazily fetches and returns the signature, or `nil`.
+### `metadata/1`
 
-## HTML internals (`OgEx&#46;HTML`)
+Required callback. Returns a metadata map:
 
-- `render/1` — evaluates card HEEx safely and wraps it in a complete,
-  viewport-sized HTML document for the native renderer.
+```elixir
+@impl OgEx.Card
+def metadata(%{post: post}) do
+  %{
+    title: post.title,
+    description: post.summary,
+    type: "article",
+    image_alt: "Preview for #{post.title}",
+    twitter_card: "summary_large_image"
+  }
+end
+```
+
+Only `:title` is required.
+
+### `render/1`
+
+Required callback. Returns HEEx:
+
+```elixir
+@impl OgEx.Card
+def render(assigns) do
+  ~H"""
+  <main style="width: 100%; height: 100%">
+    <h1>{@post.title}</h1>
+  </main>
+  """
+end
+```
+
+OgEx wraps the result in a viewport-sized HTML document before calling the
+renderer.
+
+### `version/1`
+
+Optional callback. Returns stable data that identifies the image content:
+
+```elixir
+@impl OgEx.Card
+def version(%{post: post}) do
+  {:layout_v2, post.id, post.updated_at}
+end
+```
+
+When omitted, the complete assigns map is used. The return value is hashed and
+does not appear directly in the public URL.
+
+## `OgEx.private_asset/1`
+
+Builds an opaque `<img src>` for a file below `:private_asset_root`:
+
+```heex
+<img src={OgEx.private_asset("backgrounds/report.png")} />
+```
+
+The argument must be a relative path. The resulting string is interpreted by
+OgEx's resource loader and is not a browser-accessible URL.
+
+`OgEx.Image.private_asset/1` is the underlying implementation; application card
+code should normally use the top-level delegate.
 
 ## `OgEx.Image`
 
-- `private_asset/1` — encodes an opaque private HEEx source.
-- `normalize/2` — normalizes public, private, remote, and data references.
-- `load/2` — delegates a normalized source to the configured loader.
-- `content_type/1` — maps verified formats to media types.
-- `otp_app/1` — discovers the host endpoint's OTP application.
-- `public_url/2` — creates an absolute, optionally digested Phoenix static URL.
-- private `public_source/2` and `private_source/2` — resolve trusted local roots.
-- private `private_root/1` — resolves configured relative roots under the app.
-- private `safe_file/2` and `walk_file/3` — reject traversal, missing files,
-  and symlinks.
+Most applications pass source values through controller metadata or HEEx.
+These functions are useful when implementing a custom resource loader.
 
-## `OgEx.Resources`
+### `normalize/2`
 
-- `load/2` — discovers unique `<img src>` references and returns verified bytes
-  plus sorted fingerprints.
-- private `load_source/3` — normalizes and loads one HTML source.
-- private `finish/1` — finalizes deterministic fingerprint order.
+```elixir
+OgEx.Image.normalize(source, conn)
+```
+
+Accepted sources:
+
+- root-relative public paths;
+- HTTPS or HTTP URLs;
+- base64 data URLs;
+- `{:private, relative_path}`;
+- values returned by `OgEx.private_asset/1`.
+
+Returns `{:ok, %OgEx.Image.Source{}}` or `{:error, reason}`. Local
+normalization constrains the path to its configured root and currently requires
+the file to exist.
+
+### `load/2`
+
+```elixir
+OgEx.Image.load(source, max_bytes: 2_000_000)
+```
+
+Delegates a normalized source to the configured `OgEx.ResourceLoader`.
+Returns `{:ok, %OgEx.Image.Resource{}}` or `{:error, reason}` and emits the
+resource telemetry event.
+
+### `content_type/1`
+
+Maps `:png`, `:jpeg`, `:webp`, `:gif`, or `:svg` to its HTTP media type.
+
+### `otp_app/1`
+
+Returns the OTP application that owns the Phoenix endpoint in a connection.
+Falls back to `config :og_ex, otp_app: ...` and raises when neither source is
+available.
+
+### `public_url/2`
+
+Returns an absolute URL for a root-relative static path. When available,
+the endpoint's `static_path/1` is used to include its digest.
+
+## `OgEx.Image.Source`
+
+A normalized source description produced by `OgEx.Image.normalize/2`.
+Applications should pass ordinary source forms instead of constructing the
+struct unless they are implementing an integration boundary.
+
+Important fields:
+
+- `:type` — `:public`, `:private`, `:remote`, or `:data`;
+- `:reference` — the original or opaque source identity;
+- `:path` — trusted resolved local path when applicable.
+
+## `OgEx.Image.Resource`
+
+A verified resource returned by a loader. It contains:
+
+- normalized source;
+- encoded bytes;
+- detected format and content type;
+- intrinsic dimensions;
+- SHA-256 content fingerprint;
+- optional remote ETag and Last-Modified validators.
 
 ## `OgEx.ResourceLoader`
 
-- callback `load/2` — loads a normalized source into a verified resource.
+Custom loaders implement:
+
+```elixir
+@callback load(OgEx.Image.Source.t(), keyword()) ::
+            {:ok, OgEx.Image.Resource.t()} | {:error, term()}
+```
+
+Expected missing files, policy rejections, validation problems, and network
+failures should be returned rather than raised.
+
+Use `OgEx.ResourceLoader.Default.from_bytes/2` to apply OgEx's native image,
+dimension, and SVG validation to bytes obtained from custom storage.
 
 ## `OgEx.ResourceLoader.Default`
 
-- `load/2` — loads local, data, or delegated remote sources.
-- `from_bytes/2` — applies common native inspection and safety validation.
-- private `resource/2` — constructs content-addressed verified resources.
-- private `validate_dimensions/1` — enforces dimension and pixel limits.
-- private `validate_svg/2` — rejects active and external SVG content.
-- private `decode_data_url/1`, `within_limit/2`, and
-  `configured_max_bytes/0` — enforce inline decoding and byte limits.
+### `load/2`
+
+Loads a normalized public, private, data, or remote source. Remote sources are
+delegated to `OgEx.ResourceLoader.Remote`.
+
+### `from_bytes/2`
+
+```elixir
+OgEx.ResourceLoader.Default.from_bytes(source, encoded_bytes)
+```
+
+Detects the format, decodes dimensions, applies configured dimension and pixel
+limits, checks SVG active content, computes a fingerprint, and returns a
+verified resource.
 
 ## `OgEx.ResourceLoader.Remote`
 
-- `load/2` — fetches an enabled, allowlisted remote source through the bounded
-  resource cache.
-- private `fetch/5`, `handle_response/6`, and `request/3` — validate every hop,
-  pin the selected address, stream with a byte ceiling, and handle responses.
-- private `validate_destination/2`, `allowed_scheme/2`, `allowed_host/2`,
-  `resolve/1`, `validate_addresses/1`, and `unsafe_address?/1` — implement the
-  hostname, DNS, and SSRF policy.
-- private `pinned_url/2` and `host_header/1` — connect to a validated address
-  while retaining the original TLS hostname and HTTP Host.
-- private `supported_content_type/1` — validates the declared media type before
-  byte-level inspection.
+### `load/2`
 
-## `OgEx.ResourceCache`
+Loads a normalized remote source using the configured remote policy and
+resource cache:
 
-- `start_link/1` — starts the bounded cache owner.
-- `fetch/1` — returns a non-expired resource or `:error`.
-- `fetch_stale/1` — returns an expired entry for HTTP revalidation only.
-- `put/3` — stores a resource for a configured TTL.
-- `init/1` — creates the protected, concurrent-read ETS table.
-- `handle_call/3` — enforces entry and byte bounds before insertion.
+```elixir
+OgEx.ResourceLoader.Remote.load(source)
+```
+
+Per-call options override application `:remote_images` values. Remote loading
+must be enabled and the host must match `:allowed_hosts`.
+
+This module is intended for embedded generated-card resources. Direct external
+metadata URLs are not routed through it.
 
 ## `OgEx.Renderer`
 
-- callback `render/2` — converts HTML plus rendering options into an encoded
-  image binary.
+Renderer implementations receive:
+
+```elixir
+[
+  width: 1200,
+  height: 630,
+  format: :png,
+  fonts: [font_bytes],
+  images: %{
+    "/images/logo.png" => encoded_logo_bytes
+  }
+]
+```
+
+The callback returns `{:ok, encoded_image}` or `{:error, reason}`.
 
 ## `OgEx.Renderer.Takumi`
 
-- `render/2` — normalizes Elixir keyword options and invokes the native Takumi
-  renderer.
-
-## Native bridge internals (`OgEx&#46;Native`)
-
-- `render_html/2` — Rustler NIF declaration. Its Elixir body raises
-  `:nif_not_loaded` only if native loading failed.
-- `inspect_image/1` — Rustler NIF declaration for verified format and
-  dimensions.
-
-## Font internals (`OgEx&#46;Fonts`)
-
-- `load/0` — resolves every configured path or binary into loaded font bytes.
-- private `load_font!/1` — reads an existing path; otherwise treats the input
-  as an already-loaded binary.
-
-## Image response internals (`OgEx&#46;ImageResponse`)
-
-- `send/2` — verifies the request, obtains the encoded image, and sends the
-  correct immutable HTTP response.
-- private `response/3` — selects generated rendering or direct private bytes.
-- private `cached_or_render/2` — loads resources, checks the fingerprint-aware
-  cache key, and renders on a miss.
-- private `render/3` — loads fonts and images, calls the renderer, and emits
-  successful-render telemetry.
-- private `content_type/1` — maps `:png`, `:jpeg`, `:webp`, and `:svg` to their
-  HTTP media types.
+The default renderer. `render/2` converts keyword options to the stable native
+options map and invokes the Takumi NIF. Filesystem and network work must be
+completed before this call.
 
 ## `OgEx.Cache`
 
-- callback `fetch/1` — follows `Map.fetch/2`, returning `{:ok, image}` when
-  found or `:error` when absent.
-- callback `put/2` — stores an encoded image.
+Final-image caches implement:
 
-## `OgEx.Cache.ETS`
+```elixir
+@callback fetch(term()) :: {:ok, binary()} | :error
+@callback put(term(), binary()) :: :ok
+```
 
-- `start_link/1` — starts the cache table owner.
-- `fetch/1` — performs a concurrent direct ETS lookup and returns
-  `{:ok, image}` or `:error`.
-- `put/2` — inserts or replaces an ETS cache entry.
-- `init/1` — creates the named, concurrent-read ETS table.
+Treat cache keys as opaque. OgEx passes only complete successful image binaries
+to `put/2`.
 
-## Head injection internals (`OgEx&#46;Head`)
+`OgEx.Cache.ETS` is the default per-node implementation.
 
-- `put_config/2` — assigns the card configuration and registers metadata
-  injection before the response is sent.
-- private `inject_metadata/1` — rewrites complete binary HTML responses and
-  leaves unsupported response shapes unchanged.
-- private `replace_closing_head/2` — inserts tags before the first
-  case-insensitive `</head>` without changing the rest of the original bytes.
+## Runtime configuration
 
-## Metadata internals (`OgEx&#46;Meta`)
+```elixir
+config :og_ex,
+  otp_app: :my_app,
+  fonts: ["/absolute/path/to/font.ttf"],
+  private_asset_root: "priv/og_ex",
+  renderer: OgEx.Renderer.Takumi,
+  cache: OgEx.Cache.ETS,
+  resource_loader: OgEx.ResourceLoader.Default,
+  resource_cache_module: OgEx.ResourceCache,
+  remote_images: [
+    enabled: false,
+    allowed_hosts: [],
+    allow_http: false,
+    max_bytes: 5_000_000,
+    max_dimension: 8_192,
+    max_pixels: 40_000_000,
+    connect_timeout: 2_000,
+    receive_timeout: 5_000,
+    request_timeout: 8_000,
+    max_redirects: 2,
+    cache_ttl: 300_000
+  ],
+  resource_cache: [
+    max_entries: 128,
+    max_bytes: 25_000_000
+  ]
+```
 
-- `to_html/1` — builds the complete escaped Open Graph and Twitter/X tag set.
-- private `meta/1` — safely encodes one `<meta>` element.
-- private `optional_meta/2` — omits absent values or adds a `content` attribute
-  and delegates to `meta/1`.
-
-## Native Rust functions
-
-These functions live in `native/og_ex_native/src/lib.rs`.
-
-- `render_html/3` — exported dirty-CPU NIF. It decodes Elixir arguments, calls
-  the native pipeline, and returns `{:ok, binary}` or `{:error, reason}`.
-- `inspect_image/1` — exported dirty-CPU NIF returning verified type and
-  dimensions.
-- private `render/2` — parses HTML, parses CSS, registers fonts and image
-  buffers, runs Takumi
-  layout and painting, and encodes the resulting bitmap.
-- private `extract_stylesheets/1` — extracts card-local `<style>` contents
-  because Takumi's HTML helper discards style elements from the node tree.
-- private `output_format/1` — maps raster Elixir atoms to Takumi encoder
-  settings; SVG bypasses raster encoding and uses Takumi's vector backend.
-- private `decode_images/1`, `image_info/1`, and `detected_format/1` — register
-  byte buffers and inspect supported image content without filesystem or
-  network access.
+Only `:fonts` is required for normal generated-card rendering. The remaining
+entries show defaults or extension points.
