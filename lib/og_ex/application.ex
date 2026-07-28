@@ -15,10 +15,27 @@ defmodule OgEx.Application do
     #
     # Renderers are deliberately not processes. The Takumi renderer executes on
     # Rustler's dirty CPU scheduler and can therefore be called concurrently.
+    warn_for_global_remote_access()
+
     children = [
-      OgEx.Cache.ETS
+      OgEx.Cache.ETS,
+      OgEx.ResourceCache
     ]
 
     Supervisor.start_link(children, strategy: :one_for_one, name: OgEx.Supervisor)
+  end
+
+  # Emits a single startup warning when hostname allowlisting is disabled.
+  defp warn_for_global_remote_access do
+    config = Application.get_env(:og_ex, :remote_images, [])
+
+    if Keyword.get(config, :enabled, false) and "*" in Keyword.get(config, :allowed_hosts, []) do
+      require Logger
+
+      Logger.warning("""
+      OgEx remote image loading allows all external hosts. This increases the SSRF \
+      attack surface. Prefer an explicit allowed_hosts list in production.
+      """)
+    end
   end
 end

@@ -20,7 +20,8 @@ defmodule OgEx.Renderer.Takumi do
       width: Keyword.fetch!(options, :width),
       height: Keyword.fetch!(options, :height),
       format: Keyword.get(options, :format, :png),
-      fonts: Keyword.get(options, :fonts, [])
+      fonts: Keyword.get(options, :fonts, []),
+      images: Keyword.get(options, :images, %{})
     }
 
     OgEx.Native.render_html(html, native_options)

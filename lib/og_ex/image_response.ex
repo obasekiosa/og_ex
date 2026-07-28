@@ -13,13 +13,13 @@ defmodule OgEx.ImageResponse do
   def send(conn, config) do
     # Signature verification happens before cache access. This avoids revealing
     # whether a particular private/stale card already exists in the cache.
-    with :ok <- OgEx.ConfigBuilder.verify(conn, config),
-         {:ok, image} <- cached_or_render(config) do
+    with {:ok, role} <- OgEx.ConfigBuilder.verify(conn, config),
+         {:ok, image, content_type, etag} <- response(conn, config, role) do
       conn
       # Binary image media types do not carry a text charset parameter.
-      |> put_resp_content_type(content_type(config.format), nil)
+      |> put_resp_content_type(content_type, nil)
       |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
-      |> put_resp_header("etag", ~s("#{config.version}"))
+      |> put_resp_header("etag", ~s("#{etag}"))
       |> send_resp(:ok, image)
     else
       {:error, :invalid_image_signature} ->
@@ -40,9 +40,28 @@ defmodule OgEx.ImageResponse do
     end
   end
 
+  # Sends verified private bytes directly or renders a generated card.
+  defp response(conn, %{strategy: {:generated, _card}} = config, _role) do
+    with {:ok, image} <- cached_or_render(conn, config) do
+      {:ok, image, content_type(config.format), config.version}
+    end
+  end
+
+  defp response(_conn, %{strategy: :existing} = config, role) do
+    resource = if role == :twitter_image, do: config.twitter_image, else: config.image
+
+    case resource do
+      %{source: %{type: :private}, bytes: bytes, content_type: type, fingerprint: fingerprint} ->
+        {:ok, bytes, type, fingerprint}
+
+      _ ->
+        {:error, :invalid_direct_image_request}
+    end
+  end
+
   # Looks up the fully qualified image key and renders only on a cache miss.
   # Failed renders are deliberately never written to the cache.
-  defp cached_or_render(config) do
+  defp cached_or_render(conn, config) do
     # A dependency's config files are not imported into its host application,
     # so retain the built-in adapter as a runtime default.
     cache = Application.get_env(:og_ex, :cache, OgEx.Cache.ETS)
@@ -50,28 +69,30 @@ defmodule OgEx.ImageResponse do
     # Dimensions and format are included even though they normally come from
     # the card module. This prevents collisions if a module changes those
     # values without changing its data version.
-    cache_key = {config.card, config.version, config.width, config.height, config.format}
+    with {:ok, html} <- OgEx.HTML.render(config),
+         {:ok, images, fingerprints} <- OgEx.Resources.load(html, conn) do
+      cache_key =
+        {config.card, config.version, config.width, config.height, config.format, fingerprints}
 
-    case cache.fetch(cache_key) do
-      {:ok, image} ->
-        :telemetry.execute([:og_ex, :cache, :hit], %{}, %{card: config.card})
-        {:ok, image}
-
-      :error ->
-        :telemetry.execute([:og_ex, :cache, :miss], %{}, %{card: config.card})
-
-        # Cache only complete, successfully encoded image binaries.
-        with {:ok, html} <- OgEx.HTML.render(config),
-             {:ok, image} <- render(config, html) do
-          :ok = cache.put(cache_key, image)
+      case cache.fetch(cache_key) do
+        {:ok, image} ->
+          :telemetry.execute([:og_ex, :cache, :hit], %{}, %{card: config.card})
           {:ok, image}
-        end
+
+        :error ->
+          :telemetry.execute([:og_ex, :cache, :miss], %{}, %{card: config.card})
+
+          with {:ok, image} <- render(config, html, images) do
+            :ok = cache.put(cache_key, image)
+            {:ok, image}
+          end
+      end
     end
   end
 
   # Invokes the configured renderer with loaded fonts and emits successful
   # render duration/output-size telemetry.
-  defp render(config, html) do
+  defp render(config, html, images) do
     # Host applications can replace Takumi without being required to repeat
     # the package's default configuration.
     renderer = Application.get_env(:og_ex, :renderer, OgEx.Renderer.Takumi)
@@ -85,7 +106,8 @@ defmodule OgEx.ImageResponse do
         width: config.width,
         height: config.height,
         format: config.format,
-        fonts: OgEx.Fonts.load()
+        fonts: OgEx.Fonts.load(),
+        images: images
       )
 
     duration = System.monotonic_time() - started_at

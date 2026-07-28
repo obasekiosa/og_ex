@@ -27,4 +27,11 @@ defmodule OgEx.Native do
   not be loaded. Rustler replaces it when the module loads successfully.
   """
   def render_html(_html, _options), do: :erlang.nif_error(:nif_not_loaded)
+
+  @doc """
+  Verifies encoded image bytes and returns their format and dimensions.
+
+  This Elixir body is replaced by the native implementation when the NIF loads.
+  """
+  def inspect_image(_bytes), do: :erlang.nif_error(:nif_not_loaded)
 end

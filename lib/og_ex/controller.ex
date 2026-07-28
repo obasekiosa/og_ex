@@ -42,13 +42,13 @@ defmodule OgEx.Controller do
   configuration and selects the response using the signed request parameter.
   """
   def render(conn, template, options) when is_list(options) or is_map(options) do
-    {card, page_assigns} = pop_card(options)
+    {declaration, page_assigns} = pop_card(options)
 
-    if card do
+    if declaration do
       # Build the same deterministic config during the human page request and
       # the crawler's later image request. This is why the existing controller
       # action can serve both representations without a second route.
-      config = OgEx.ConfigBuilder.build(conn, card, Map.new(page_assigns))
+      config = OgEx.ConfigBuilder.build(conn, declaration, Map.new(page_assigns))
 
       if OgEx.Request.image_request?(conn) do
         # The reserved compact signature selects the image response. Query

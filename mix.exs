@@ -1,7 +1,7 @@
 defmodule OgEx.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.2.0"
   @source_url "https://github.com/obasekiosa/og_ex"
 
   def project do
@@ -32,6 +32,8 @@ defmodule OgEx.MixProject do
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_view, "~> 1.0"},
       {:plug, "~> 1.15"},
+      {:floki, "~> 0.36"},
+      {:req, "~> 0.5"},
       {:rustler_precompiled, "~> 0.9"},
       {:rustler, "~> 0.38", runtime: false},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}

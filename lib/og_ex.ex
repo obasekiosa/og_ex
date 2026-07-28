@@ -15,6 +15,14 @@ defmodule OgEx do
   @behaviour Plug
 
   @doc """
+  Returns an opaque HEEx source for a file below the private image root.
+
+  Use the returned value as an `<img src>` inside a generated card. OgEx loads
+  the bytes itself and does not expose a filesystem path to the renderer.
+  """
+  defdelegate private_asset(path), to: OgEx.Image
+
+  @doc """
   Initializes the optional compatibility endpoint plug.
 
   New applications do not need this plug because controller rendering fetches

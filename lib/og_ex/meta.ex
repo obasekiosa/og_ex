@@ -18,13 +18,13 @@ defmodule OgEx.Meta do
       optional_meta(metadata[:description], property: "og:description"),
       meta(property: "og:type", content: metadata[:type] || "website"),
       meta(property: "og:image", content: config.image_url),
-      meta(property: "og:image:width", content: config.width),
-      meta(property: "og:image:height", content: config.height),
+      optional_meta(config.width, property: "og:image:width"),
+      optional_meta(config.height, property: "og:image:height"),
       optional_meta(metadata[:image_alt], property: "og:image:alt"),
       meta(name: "twitter:card", content: metadata[:twitter_card] || "summary_large_image"),
       meta(name: "twitter:title", content: metadata.title),
       optional_meta(metadata[:description], name: "twitter:description"),
-      meta(name: "twitter:image", content: config.image_url),
+      meta(name: "twitter:image", content: config.twitter_image_url || config.image_url),
       optional_meta(metadata[:image_alt], name: "twitter:image:alt")
     ]
     |> Enum.reject(&is_nil/1)
