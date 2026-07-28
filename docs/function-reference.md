@@ -7,13 +7,17 @@ excludes private APIs.
 
 ## `OgEx`
 
+- `private_asset/1` — returns an opaque private-image source for card HEEx.
 - `init/1` — initializes the optional backward-compatible endpoint plug.
 - `call/2` — eagerly fetches query parameters for applications that retain the
   optional plug; new applications do not need it.
 
 ## Application internals (`OgEx&#46;Application`)
 
-- `start/2` — starts the OgEx supervisor and its default ETS cache.
+- `start/2` — logs wildcard remote policy when configured and starts the
+  generated-image and resource caches.
+- private `warn_for_global_remote_access/0` — emits the once-per-startup SSRF
+  warning for `allowed_hosts: ["*"]`.
 
 ## `OgEx.Card`
 
@@ -35,18 +39,26 @@ excludes private APIs.
 - `render/3` — delegates ordinary renders to Phoenix; for an OgEx card, selects
   either the normal page response or signed image response and discovers the
   signature lazily.
-- private `pop_card/1` — separates the `:og` card module from keyword-list or
+- private `pop_card/1` — separates the `:og` declaration from keyword-list or
   map template assigns.
 
 ## Configuration builder internals (`OgEx&#46;ConfigBuilder`)
 
-- `build/3` — evaluates metadata, creates the deterministic content version and
-  compact 22-character HMAC, and returns a complete `%OgEx.Config{}`.
-- `verify/2` — rebuilds and securely compares the signature bound to the card,
-  version, and request path.
-- private `version/2` — hashes the card identity and either `version/1` output
-  or full assigns into a URL-safe SHA-256 value.
-- private `signature/3` — creates a 128-bit truncated HMAC.
+- `build/3` — builds either a generated-card config or a direct public,
+  private, or remote image config.
+- `verify/2` — rebuilds signatures and returns the authenticated Open Graph or
+  Twitter image role.
+- private `direct_image!/2` — normalizes a direct declaration and loads local
+  bytes while leaving external URLs unfetched.
+- private `load_direct!/1` — turns a loader error into a declaration error.
+- private `direct_url/4` — selects a static, external, or signed private URL.
+- private `dimension/2` and `format/1` — read optional inspected properties.
+- private `generated_version/2` — hashes generated-card version data.
+- private `direct_version/2` — hashes both direct image identities.
+- private `resource_identity/1` — reduces a resource to a digest or URL.
+- private `identity/2` and `resource_for/2` — reconstruct role-bound signature
+  identity.
+- private `signature/3` — creates a route- and role-bound 128-bit HMAC.
 - private `signing_key/1` — derives a domain-separated key from Phoenix's
   `secret_key_base`.
 - private `image_url/2` — adds the compact signature to the current absolute URL
@@ -62,6 +74,63 @@ excludes private APIs.
 - `render/1` — evaluates card HEEx safely and wraps it in a complete,
   viewport-sized HTML document for the native renderer.
 
+## `OgEx.Image`
+
+- `private_asset/1` — encodes an opaque private HEEx source.
+- `normalize/2` — normalizes public, private, remote, and data references.
+- `load/2` — delegates a normalized source to the configured loader.
+- `content_type/1` — maps verified formats to media types.
+- `otp_app/1` — discovers the host endpoint's OTP application.
+- `public_url/2` — creates an absolute, optionally digested Phoenix static URL.
+- private `public_source/2` and `private_source/2` — resolve trusted local roots.
+- private `private_root/1` — resolves configured relative roots under the app.
+- private `safe_file/2` and `walk_file/3` — reject traversal, missing files,
+  and symlinks.
+
+## `OgEx.Resources`
+
+- `load/2` — discovers unique `<img src>` references and returns verified bytes
+  plus sorted fingerprints.
+- private `load_source/3` — normalizes and loads one HTML source.
+- private `finish/1` — finalizes deterministic fingerprint order.
+
+## `OgEx.ResourceLoader`
+
+- callback `load/2` — loads a normalized source into a verified resource.
+
+## `OgEx.ResourceLoader.Default`
+
+- `load/2` — loads local, data, or delegated remote sources.
+- `from_bytes/2` — applies common native inspection and safety validation.
+- private `resource/2` — constructs content-addressed verified resources.
+- private `validate_dimensions/1` — enforces dimension and pixel limits.
+- private `validate_svg/2` — rejects active and external SVG content.
+- private `decode_data_url/1`, `within_limit/2`, and
+  `configured_max_bytes/0` — enforce inline decoding and byte limits.
+
+## `OgEx.ResourceLoader.Remote`
+
+- `load/2` — fetches an enabled, allowlisted remote source through the bounded
+  resource cache.
+- private `fetch/5`, `handle_response/6`, and `request/3` — validate every hop,
+  pin the selected address, stream with a byte ceiling, and handle responses.
+- private `validate_destination/2`, `allowed_scheme/2`, `allowed_host/2`,
+  `resolve/1`, `validate_addresses/1`, and `unsafe_address?/1` — implement the
+  hostname, DNS, and SSRF policy.
+- private `pinned_url/2` and `host_header/1` — connect to a validated address
+  while retaining the original TLS hostname and HTTP Host.
+- private `supported_content_type/1` — validates the declared media type before
+  byte-level inspection.
+
+## `OgEx.ResourceCache`
+
+- `start_link/1` — starts the bounded cache owner.
+- `fetch/1` — returns a non-expired resource or `:error`.
+- `fetch_stale/1` — returns an expired entry for HTTP revalidation only.
+- `put/3` — stores a resource for a configured TTL.
+- `init/1` — creates the protected, concurrent-read ETS table.
+- `handle_call/3` — enforces entry and byte bounds before insertion.
+
 ## `OgEx.Renderer`
 
 - callback `render/2` — converts HTML plus rendering options into an encoded
@@ -76,6 +145,8 @@ excludes private APIs.
 
 - `render_html/2` — Rustler NIF declaration. Its Elixir body raises
   `:nif_not_loaded` only if native loading failed.
+- `inspect_image/1` — Rustler NIF declaration for verified format and
+  dimensions.
 
 ## Font internals (`OgEx&#46;Fonts`)
 
@@ -87,9 +158,10 @@ excludes private APIs.
 
 - `send/2` — verifies the request, obtains the encoded image, and sends the
   correct immutable HTTP response.
-- private `cached_or_render/1` — checks the configured cache and executes the
-  HTML/native rendering pipeline on a miss.
-- private `render/2` — loads fonts, calls the configured renderer, and emits
+- private `response/3` — selects generated rendering or direct private bytes.
+- private `cached_or_render/2` — loads resources, checks the fingerprint-aware
+  cache key, and renders on a miss.
+- private `render/3` — loads fonts and images, calls the renderer, and emits
   successful-render telemetry.
 - private `content_type/1` — maps `:png`, `:jpeg`, `:webp`, and `:svg` to their
   HTTP media types.
@@ -130,9 +202,15 @@ These functions live in `native/og_ex_native/src/lib.rs`.
 
 - `render_html/3` — exported dirty-CPU NIF. It decodes Elixir arguments, calls
   the native pipeline, and returns `{:ok, binary}` or `{:error, reason}`.
-- private `render/2` — parses HTML, parses CSS, registers fonts, runs Takumi
+- `inspect_image/1` — exported dirty-CPU NIF returning verified type and
+  dimensions.
+- private `render/2` — parses HTML, parses CSS, registers fonts and image
+  buffers, runs Takumi
   layout and painting, and encodes the resulting bitmap.
 - private `extract_stylesheets/1` — extracts card-local `<style>` contents
   because Takumi's HTML helper discards style elements from the node tree.
 - private `output_format/1` — maps raster Elixir atoms to Takumi encoder
   settings; SVG bypasses raster encoding and uses Takumi's vector backend.
+- private `decode_images/1`, `image_info/1`, and `detected_format/1` — register
+  byte buffers and inspect supported image content without filesystem or
+  network access.

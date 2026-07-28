@@ -11,9 +11,8 @@ render(conn, :show, post: post, og: MyAppWeb.PostOgCard)
 
 Application code does not define an image route or image controller.
 
-> **Project status:** `0.1.0` is an experimental preview. The image pipeline and
-> signed request lifecycle are usable, but the public API may change between
-> `0.x` releases.
+> **Project status:** `0.1.0` is the current published preview. This source tree
+> develops `0.2.0`; public APIs may still change between `0.x` releases.
 
 ## How it works
 
@@ -181,6 +180,129 @@ and sends them through Takumi's selector and cascade engine.
 The dimensions declared in `use OgEx.Card` are the single source of truth.
 OgEx applies them to the renderer viewport and generated HTML document, while
 the card root fills that viewport with `width: 100%` and `height: 100%`.
+
+## Images inside generated cards
+
+Use ordinary HTML for public static and external images. OgEx discovers each
+`<img src>`, verifies and loads its bytes in Elixir, and registers those bytes
+under the original source string before Takumi renders:
+
+```heex
+<img src="/images/logo.png" width="160" height="160" />
+<img src="https://cdn.example.com/products/cover.webp" width="480" height="320" />
+```
+
+Private files live below a configured root and use an opaque source helper:
+
+```elixir
+config :og_ex,
+  otp_app: :my_app,
+  private_asset_root: "priv/og_ex"
+```
+
+```heex
+<img src={OgEx.private_asset("backgrounds/confidential.png")} />
+```
+
+The helper does not expose the filesystem path to Takumi or produce a public
+static URL. The initial resource scanner supports `<img src>`; CSS `url(...)`,
+`srcset`, and `<picture>` are planned follow-ups.
+
+## Existing images without a generated card
+
+Pass metadata directly when an already-encoded image should be used. Public
+Phoenix assets use their cache-busted static URL and are served by `Plug.Static`:
+
+```elixir
+render(conn, :about,
+  og: [
+    title: "About us",
+    description: "Meet the team",
+    image: "/images/about-og.png",
+    image_alt: "The Acme team"
+  ]
+)
+```
+
+External direct images are emitted without a server-side fetch. Dimensions are
+optional:
+
+```elixir
+render(conn, :show,
+  post: post,
+  og: [
+    title: post.title,
+    image: post.cover_url,
+    image_width: 1200,
+    image_height: 630
+  ]
+)
+```
+
+Private existing images are verified and served from a signed version of the
+same controller route:
+
+```elixir
+render(conn, :report,
+  report: report,
+  og: [
+    title: report.title,
+    image: {:private, "reports/default-og.png"}
+  ]
+)
+```
+
+Use `twitter_image` when Twitter/X needs a different asset:
+
+```elixir
+og: [
+  title: "A release",
+  image: "/images/release-og.png",
+  twitter_image: "/images/release-twitter.png",
+  twitter_card: "summary"
+]
+```
+
+PNG is recommended for widest crawler compatibility. OgEx verifies PNG, JPEG,
+WebP, GIF, and SVG direct resources, but some social platforms do not preview
+SVG.
+
+## Remote image policy
+
+Remote fetching happens only for images embedded in generated cards. It is
+disabled by default and deny-by-default when enabled:
+
+```elixir
+config :og_ex,
+  remote_images: [
+    enabled: true,
+    allowed_hosts: ["cdn.example.com", "*.cloudfront.net"],
+    max_bytes: 5_000_000,
+    max_dimension: 8192,
+    max_pixels: 40_000_000,
+    connect_timeout: 2_000,
+    receive_timeout: 5_000,
+    request_timeout: 8_000,
+    max_redirects: 2,
+    cache_ttl: 300_000
+  ],
+  resource_cache: [
+    max_entries: 128,
+    max_bytes: 25_000_000
+  ]
+```
+
+`allowed_hosts: ["*"]` explicitly permits every hostname and logs a warning
+once at startup. It does not disable HTTPS enforcement, DNS/IP validation,
+redirect validation, timeouts, byte limits, image inspection, or SVG safety
+checks. Plain HTTP additionally requires `allow_http: true`.
+
+Applications with authenticated object storage or a different network policy
+can implement `OgEx.ResourceLoader` and configure:
+
+```elixir
+config :og_ex, resource_loader: MyApp.OgResourceLoader
+```
 
 ## Output formats
 
