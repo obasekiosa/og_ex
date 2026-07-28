@@ -96,6 +96,17 @@ defmodule OgEx.ResourceLoader.Remote do
   # Streams into the response struct and halts as soon as the byte limit is
   # crossed. The oversized partial body is never decoded or cached.
   defp request(uri, address, config, stale) do
+    timeout = Keyword.get(config, :request_timeout, 8_000)
+    task = Task.async(fn -> perform_request(uri, address, config, stale) end)
+
+    case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
+      {:ok, result} -> result
+      nil -> {:error, {:resource_timeout, :request}}
+    end
+  end
+
+  # Performs the pinned streaming request inside the total-timeout task.
+  defp perform_request(uri, address, config, stale) do
     max_bytes = Keyword.get(config, :max_bytes, @default_max_bytes)
     pinned_url = pinned_url(uri, address)
     host_header = host_header(uri)
@@ -118,8 +129,7 @@ defmodule OgEx.ResourceLoader.Remote do
         timeout: Keyword.get(config, :connect_timeout, 2_000),
         hostname: uri.host
       ],
-      receive_timeout: Keyword.get(config, :receive_timeout, 5_000),
-      request_timeout: Keyword.get(config, :request_timeout, 8_000)
+      receive_timeout: Keyword.get(config, :receive_timeout, 5_000)
     )
   rescue
     error -> {:error, {:resource_request_failed, Exception.message(error)}}
