@@ -432,6 +432,59 @@ Direct public and private local image fingerprints should be content hashes.
 Direct external URLs should use the URL itself unless the user supplies an
 explicit version.
 
+## Direct-image sizing and normalization TODO
+
+The current direct-image path preserves the original image bytes and reports
+the source's intrinsic dimensions. It does not place the image on a `1200 ×
+630` canvas or otherwise normalize it to a commonly recommended Open Graph
+aspect ratio.
+
+Before adding automatic sizing, decide which contract applications need:
+
+1. Preserve the original file and dimensions, which is predictable and avoids
+   re-encoding.
+2. Fit the source inside a configured social-card canvas without cropping,
+   adding a background or transparent padding where necessary.
+3. Fill a configured canvas with cropping, using an explicit focal point or
+   object-position option.
+4. Reject images that do not match a configured aspect ratio.
+
+The design should not refer to one mandatory “Open Graph spec size,” because
+Open Graph itself does not mandate a single image dimension. A preset such as
+`{1200, 630}` should be named as an OgEx or platform recommendation rather than
+presented as protocol validation.
+
+Possible controller API:
+
+```elixir
+og: [
+  title: post.title,
+  image: "/images/post.png",
+  image_fit: :contain,
+  image_size: {1200, 630},
+  image_background: "#ffffff"
+]
+```
+
+Questions to resolve:
+
+- whether sizing options convert a direct image into a generated-image
+  strategy;
+- whether `:contain`, `:cover`, and strict validation are all needed;
+- whether the original format is retained or a new output format is required;
+- how focal points are represented for `:cover`;
+- how padding/background choices affect transparent images;
+- whether the normalized result is generated lazily and cached by source
+  fingerprint plus sizing options;
+- which dimensions are emitted in metadata before the normalized result exists;
+- whether separate Open Graph and Twitter images can use different presets;
+- how animated GIF input is handled;
+- how limits prevent very large source images from exhausting memory.
+
+Add integration tests that verify output dimensions, no-crop `:contain`
+behavior, deliberate `:cover` behavior, cache invalidation, alpha backgrounds,
+and separate Twitter sizing.
+
 ## Dependencies
 
 Likely new Elixir dependencies:

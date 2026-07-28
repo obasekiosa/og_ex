@@ -22,10 +22,8 @@ add an image controller or image route.
 
 ## Release status
 
-OgEx `0.1.0` is the current Hex release. This repository is developing `0.2.0`,
-which adds image resources inside generated cards and direct-image metadata.
-The `0.2.0` native archives have not been published, so a path dependency must
-be compiled from source with `OG_EX_BUILD=1`.
+OgEx `0.2.0` is the current release. It includes image resources inside
+generated cards and direct-image metadata.
 
 OgEx is still a `0.x` package. Review release notes before upgrading because
 minor releases may change public APIs.
@@ -35,46 +33,25 @@ minor releases may change public APIs.
 - Elixir 1.17 or later.
 - Phoenix 1.7 or later.
 - At least one TTF, OTF, WOFF, or WOFF2 font.
-- Rust only when building OgEx from source. Published releases use precompiled
-  native archives.
+- No Rust toolchain is required for supported release targets. OgEx downloads a
+  precompiled native archive during dependency compilation.
 
 ## Installation
 
-For the published `0.1` release:
+Add OgEx to `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:og_ex, "~> 0.1"}
+    {:og_ex, "~> 0.2"}
   ]
 end
 ```
-
-For the current `0.2` source checkout:
-
-```elixir
-def deps do
-  [
-    {:og_ex, path: "../og-ex"}
-  ]
-end
-```
-
-Compile an unreleased checkout before running any other Mix task that might
-compile dependencies:
-
-```bash
-OG_EX_BUILD=1 mix deps.compile og_ex --force
-OG_EX_BUILD=1 mix phx.server
-```
-
-Without `OG_EX_BUILD=1`, `RustlerPrecompiled` looks for a GitHub release matching
-the version in `mix.exs`. An unreleased version returns a 404 because its native
-archives do not exist yet.
 
 Published versions select a checksum-verified archive for the host operating
-system, CPU, and NIF ABI. See [Native distribution](docs/06-distribution.md)
-for the supported targets and source-build details.
+system, CPU, and NIF ABI. See
+[Native releases and publishing](docs/native-releases.md) for supported targets
+and release details.
 
 ## Configure fonts
 
@@ -436,6 +413,22 @@ render(conn, :release,
 
 Public, private, and external source forms are accepted for
 `:twitter_image`.
+
+### Direct-image dimensions and resizing
+
+OgEx does not resize an existing direct image.
+
+- For a public or private local image, OgEx inspects the file and writes its
+  intrinsic width and height into the Open Graph metadata.
+- A private direct response returns the original encoded bytes unchanged.
+- A public direct image is served unchanged by `Plug.Static`.
+- For an external direct image, OgEx does not fetch the URL. It writes
+  `:image_width` and `:image_height` only when those values are supplied.
+
+The `1200 × 630` size commonly used for large Open Graph cards is a convention,
+not a transformation currently applied to direct images. If a source must be
+exactly `1200 × 630`, prepare it at that size or use a generated card whose
+viewport is configured to those dimensions.
 
 ## Generated request lifecycle
 
@@ -831,8 +824,31 @@ The native integration tests render real images and verify their formats and
 dimensions.
 
 See [Public API reference](docs/function-reference.md) for callbacks,
-configuration boundaries, and extension points. Native release maintenance is
-documented separately in [Native distribution](docs/06-distribution.md).
+configuration boundaries, and extension points.
+
+### Developing OgEx from source
+
+Path dependencies and unreleased versions do not have matching GitHub release
+archives:
+
+```elixir
+def deps do
+  [
+    {:og_ex, path: "../og-ex"}
+  ]
+end
+```
+
+Force a local native build on the first command that compiles OgEx:
+
+```bash
+OG_EX_BUILD=1 mix deps.compile og_ex --force
+OG_EX_BUILD=1 mix test
+```
+
+Source builds require the Rust version pinned in `rust-toolchain.toml`. Native
+release maintenance is documented in
+[Native releases and publishing](docs/native-releases.md).
 
 ## License
 

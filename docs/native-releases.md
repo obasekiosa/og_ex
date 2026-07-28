@@ -1,4 +1,4 @@
-# Native distribution
+# Native releases and publishing
 
 OgEx uses `RustlerPrecompiled` so ordinary Hex consumers download a native
 artifact instead of compiling Takumi and the OgEx NIF locally.
@@ -8,7 +8,7 @@ artifact instead of compiling Takumi and the OgEx NIF locally.
 Released versions require only the Hex dependency:
 
 ```elixir
-{:og_ex, "~> 0.1"}
+{:og_ex, "~> 0.2"}
 ```
 
 During `mix compile`, `RustlerPrecompiled` selects the current operating system,

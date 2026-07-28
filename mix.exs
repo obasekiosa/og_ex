@@ -59,7 +59,7 @@ defmodule OgEx.MixProject do
           "artifacts",
           "docs/function-reference.md",
           "docs/internal-architecture.md",
-          "docs/06-distribution.md",
+          "docs/native-releases.md",
           "mix.exs",
           "README.md",
           "LICENSE"
@@ -77,11 +77,11 @@ defmodule OgEx.MixProject do
         "README.md",
         "docs/function-reference.md",
         "docs/internal-architecture.md",
-        "docs/06-distribution.md"
+        "docs/native-releases.md"
       ],
       groups_for_extras: [
         Guides: ["README.md", "docs/function-reference.md"],
-        Maintainers: ["docs/internal-architecture.md", "docs/06-distribution.md"]
+        Maintainers: ["docs/internal-architecture.md", "docs/native-releases.md"]
       ],
       groups_for_modules: [
         "Controller API": [OgEx, OgEx.Controller, OgEx.Card],
