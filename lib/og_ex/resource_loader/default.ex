@@ -1,6 +1,13 @@
 defmodule OgEx.ResourceLoader.Default do
   @moduledoc """
-  Default local, inline, and remote image resource loader.
+  Built-in resource loader.
+
+  Public and private files are read from paths already constrained by
+  `OgEx.Image`. Data URLs are decoded locally. Remote sources are delegated to
+  `OgEx.ResourceLoader.Remote`.
+
+  All bytes pass through native format and dimension inspection. Supported
+  resource types are PNG, JPEG, WebP, GIF, and SVG.
   """
 
   @behaviour OgEx.ResourceLoader
@@ -10,7 +17,7 @@ defmodule OgEx.ResourceLoader.Default do
   @default_max_bytes 5_000_000
 
   @doc """
-  Loads and verifies a normalized image source.
+  Loads and verifies a normalized source.
 
   Local files are read only after `OgEx.Image` has constrained them to a
   trusted root. Data URLs and remote responses share the same byte and native
@@ -46,10 +53,12 @@ defmodule OgEx.ResourceLoader.Default do
   end
 
   @doc """
-  Verifies raw bytes and constructs a resource for a normalized source.
+  Verifies encoded bytes and constructs an `OgEx.Image.Resource`.
 
   Custom loaders can use this boundary to apply the same native type,
   dimensions, and safe-SVG checks as the default loader.
+
+  Returns `{:ok, resource}` or `{:error, {:invalid_image, reason}}`.
   """
   def from_bytes(%Source{} = source, bytes) when is_binary(bytes), do: resource(source, bytes)
 

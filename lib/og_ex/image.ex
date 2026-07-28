@@ -1,10 +1,19 @@
 defmodule OgEx.Image do
   @moduledoc """
-  Normalizes and resolves images used by social metadata and generated cards.
+  Normalizes and loads image sources.
 
-  Public static paths and HTTPS URLs use ordinary strings. Private files use
-  `{:private, relative_path}` in controller metadata or `private_asset/1` in
-  card HEEx.
+  Accepted source forms:
+
+    * `"/images/card.png"` for a file below the host application's
+      `priv/static`
+    * `"https://cdn.example.com/card.webp"` for a remote image
+    * `"data:image/png;base64,..."` inside a generated card
+    * `{:private, "reports/card.png"}` in direct controller metadata
+    * `private_asset/1` inside generated-card HEEx
+
+  Most applications use source values in controller declarations or HEEx
+  rather than calling this module directly. Custom resource loaders can use
+  `normalize/2` and `load/2` at the same boundary as the built-in loader.
   """
 
   alias OgEx.Image.Source
@@ -12,7 +21,7 @@ defmodule OgEx.Image do
   @private_scheme "ogex-private:"
 
   @doc """
-  Returns an opaque source string for a private image inside card HEEx.
+  Builds an opaque source string for a private image inside card HEEx.
 
   The path is resolved below the configured `:private_asset_root`; it is never
   exposed to Takumi as a filesystem path.
@@ -22,7 +31,11 @@ defmodule OgEx.Image do
   end
 
   @doc """
-  Normalizes a public path, remote URL, data URL, or private image reference.
+  Normalizes a supported image reference.
+
+  Local paths are resolved below their trusted root and rejected when missing,
+  unreadable, absolute, traversing, or symlinked. The return value is
+  `{:ok, source}` or `{:error, reason}`.
   """
   def normalize({:private, path}, conn) when is_binary(path) do
     private_source(path, conn)
@@ -53,9 +66,13 @@ defmodule OgEx.Image do
   def normalize(source, _conn), do: {:error, {:invalid_image_source, source}}
 
   @doc """
-  Resolves and verifies a local or inline source through the configured loader.
+  Loads and verifies a normalized source through the configured loader.
 
-  Remote sources are also supported when remote loading is enabled.
+  `options` are passed to the loader. The default loader returns
+  `{:ok, %OgEx.Image.Resource{}}` or a structured error. Remote sources require
+  `remote_images: [enabled: true, ...]`.
+
+  The function emits `[:og_ex, :resource, :stop]` for success and failure.
   """
   def load(%Source{} = source, options \\ []) do
     loader = Application.get_env(:og_ex, :resource_loader, OgEx.ResourceLoader.Default)
@@ -83,7 +100,7 @@ defmodule OgEx.Image do
   end
 
   @doc """
-  Returns the media type associated with a verified image format.
+  Returns the HTTP media type for a verified image format.
   """
   def content_type(:png), do: "image/png"
   def content_type(:jpeg), do: "image/jpeg"
@@ -92,7 +109,10 @@ defmodule OgEx.Image do
   def content_type(:svg), do: "image/svg+xml"
 
   @doc """
-  Returns the OTP application that owns the Phoenix endpoint on a connection.
+  Returns the OTP application that owns the connection's Phoenix endpoint.
+
+  When it cannot be inferred, this reads `config :og_ex, otp_app: ...` and
+  raises `ArgumentError` if no application is configured.
   """
   def otp_app(conn) do
     endpoint = conn.private[:phoenix_endpoint]
@@ -110,7 +130,9 @@ defmodule OgEx.Image do
   end
 
   @doc """
-  Converts a static path into an absolute, optionally digested endpoint URL.
+  Converts a root-relative static path into an absolute endpoint URL.
+
+  If the endpoint exports `static_path/1`, its cache-digested path is used.
   """
   def public_url(conn, path) do
     endpoint = conn.private[:phoenix_endpoint]

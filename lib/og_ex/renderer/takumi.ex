@@ -1,6 +1,10 @@
 defmodule OgEx.Renderer.Takumi do
   @moduledoc """
-  Renders HEEx-produced HTML and CSS with the native Takumi engine.
+  Native Takumi implementation of `OgEx.Renderer`.
+
+  Filesystem and HTTP work happen before this module is called. The renderer
+  receives verified image buffers under the source strings used in the HTML.
+  Native layout and encoding run on Rustler's dirty CPU scheduler.
   """
 
   @behaviour OgEx.Renderer
@@ -8,9 +12,16 @@ defmodule OgEx.Renderer.Takumi do
   @doc """
   Renders an HTML document using Takumi.
 
-  Required options are `:width` and `:height`. `:format` accepts `:png`,
-  `:jpeg`, `:webp`, or `:svg` and defaults to `:png`. `:fonts` accepts a list
-  of loaded font binaries.
+  Options:
+
+    * `:width` — required viewport width
+    * `:height` — required viewport height
+    * `:format` — `:png`, `:jpeg`, `:webp`, or `:svg`; defaults to `:png`
+    * `:fonts` — loaded font binaries; defaults to an empty list
+    * `:images` — source strings mapped to encoded image bytes; defaults to an
+      empty map
+
+  Takumi requires at least one valid font for generated-card rendering.
   """
   @impl true
   def render(html, options) when is_binary(html) and is_list(options) do

@@ -1,6 +1,9 @@
 defmodule OgEx.Cache.ETS do
   @moduledoc """
-  In-memory cache used by default.
+  Default in-memory generated-image cache.
+
+  The table is local to one BEAM node and is removed when its owner stops. It
+  does not evict entries or coalesce concurrent misses.
   """
 
   @behaviour OgEx.Cache

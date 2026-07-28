@@ -1,17 +1,31 @@
 defmodule OgEx.Controller do
   @moduledoc """
-  Adds OgEx support to the standard Phoenix controller `render/3` call.
+  Adds OgEx declarations to a Phoenix controller's `render/3` call.
 
   Use it after the application's normal controller setup:
 
       use MyAppWeb, :controller
       use OgEx.Controller
+
+  A render may select a generated card:
+
+      render(conn, :show, post: post, og: MyAppWeb.PostOgCard)
+
+  Or an existing image:
+
+      render(conn, :about,
+        og: [title: "About Acme", image: "/images/about-og.png"]
+      )
+
+  Calls without `:og` keep normal Phoenix behavior.
   """
 
   @doc """
   Installs an OgEx-aware local `render/3` in the consuming controller.
 
-  The generated function delegates to `OgEx.Controller.render/3`.
+  The generated function delegates to `render/3` in this module. Install the
+  integration after the application's normal controller setup so OgEx can
+  replace Phoenix's imported `render/3`.
   """
   defmacro __using__(_options) do
     quote do
@@ -25,8 +39,8 @@ defmodule OgEx.Controller do
       @doc """
       Renders a Phoenix page or its OgEx image representation.
 
-      Pass `og: CardModule` alongside the normal template assigns to enable the
-      card for this render.
+      `:og` may be an `OgEx.Card` module or direct image metadata containing
+      `:title` and `:image`.
       """
       def render(conn, template, options) do
         OgEx.Controller.render(conn, template, options)
@@ -37,9 +51,14 @@ defmodule OgEx.Controller do
   @doc """
   Dispatches a controller render to either Phoenix HTML or an OgEx image.
 
-  Without an `:og` option this delegates directly to
-  `Phoenix.Controller.render/3`. With a card, it builds the deterministic card
-  configuration and selects the response using the signed request parameter.
+  Without `:og`, this delegates to `Phoenix.Controller.render/3`.
+
+  With a card module, normal requests register generated-image metadata and
+  signed requests return the card image. With direct metadata, public and
+  external sources are emitted as existing URLs while private sources use a
+  signed response.
+
+  This function expects controller render options as a keyword list or map.
   """
   def render(conn, template, options) when is_list(options) or is_map(options) do
     {declaration, page_assigns} = pop_card(options)

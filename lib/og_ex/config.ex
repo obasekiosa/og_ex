@@ -2,8 +2,8 @@ defmodule OgEx.Config do
   @moduledoc """
   Normalized configuration for one page's social metadata and image response.
 
-  Applications do not normally construct this struct. `OgEx.ConfigBuilder`
-  creates it from either `og: CardModule` or an `og: [...]` direct-image
+  Applications do not normally construct this struct. OgEx creates it
+  internally from either `og: CardModule` or an `og: [...]` direct-image
   declaration. The same value is consumed by head-tag injection, signature
   verification, private-file responses, and generated-card rendering.
 

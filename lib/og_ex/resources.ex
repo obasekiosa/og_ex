@@ -1,16 +1,18 @@
 defmodule OgEx.Resources do
   @moduledoc """
-  Discovers and loads image resources referenced by generated card HTML.
+  Discovers and loads image resources referenced by generated-card HTML.
 
-  The renderer receives only verified byte buffers keyed by the exact source
-  strings used in the HTML.
+  The current implementation scans unique `<img src>` values. The renderer
+  receives verified byte buffers keyed by the exact source strings used in the
+  HTML. CSS `url(...)`, `srcset`, and `<picture>` are not scanned.
   """
 
   @doc """
-  Loads every unique `<img src>` found in a rendered card document.
+  Loads every unique `<img src>` in a rendered card document.
 
   Returns the renderer image map and a sorted fingerprint list suitable for a
-  generated-image cache key.
+  generated-image cache key. The first normalization or loading failure stops
+  the operation and returns `{:error, {:image_resource, source, reason}}`.
   """
   def load(html, conn) when is_binary(html) do
     with {:ok, document} <- Floki.parse_document(html) do

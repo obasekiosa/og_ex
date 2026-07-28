@@ -1,9 +1,29 @@
 defmodule OgEx.Card do
   @moduledoc """
-  Defines a social card using HEEx, HTML, and CSS.
+  Behaviour and setup macro for generated social cards.
 
-  A card implements `metadata/1` and `render/1`. Using this module also imports
-  `Phoenix.Component`, so `~H` and component attributes are available.
+  A card implements `metadata/1` and `render/1`, and normally implements
+  `version/1`. `use OgEx.Card` imports `Phoenix.Component`, so card modules can
+  return ordinary HEEx:
+
+      defmodule MyAppWeb.ArticleOgCard do
+        use OgEx.Card, width: 1200, height: 630, format: :png
+
+        @impl OgEx.Card
+        def metadata(%{article: article}) do
+          %{title: article.title, description: article.summary}
+        end
+
+        @impl OgEx.Card
+        def version(%{article: article}) do
+          {article.id, article.updated_at}
+        end
+
+        @impl OgEx.Card
+        def render(assigns) do
+          ~H"<main style=\"width: 100%; height: 100%\">{@article.title}</main>"
+        end
+      end
   """
 
   @type metadata :: %{
@@ -15,20 +35,30 @@ defmodule OgEx.Card do
         }
 
   @doc """
-  Returns Open Graph and Twitter/X metadata for the card assigns.
+  Returns metadata for the page and generated image.
+
+  `:title` is required. `:description`, `:type`, `:image_alt`, and
+  `:twitter_card` are optional.
   """
   @callback metadata(assigns :: map()) :: metadata()
 
   @doc """
-  Returns the HEEx representation that OgEx sends to the configured renderer.
+  Returns the HEEx representation sent to the configured renderer.
+
+  The callback receives the controller assigns passed beside `:og`. Image
+  sources in `<img src>` are loaded before the renderer is called.
   """
   @callback render(assigns :: map()) :: Phoenix.LiveView.Rendered.t()
 
   @doc """
-  Returns the stable data used to version the generated image.
+  Returns stable content data used to version the generated image.
 
   This callback is optional. When omitted, OgEx versions the complete assigns
-  map.
+  map. Implement it in production to exclude assigns that do not affect the
+  image.
+
+  Card source and CSS are not hashed automatically. Include a marker such as
+  `:layout_v2` when a presentation change must create a new immutable URL.
   """
   @callback version(assigns :: map()) :: term()
 
@@ -37,9 +67,14 @@ defmodule OgEx.Card do
   @doc """
   Configures a module as an OgEx card.
 
-  Supported options are `:width`, `:height`, and `:format`. Formats may be
-  `:png`, `:jpeg`, `:webp`, or `:svg`. The macro imports `Phoenix.Component`,
-  records the render dimensions, and installs the `OgEx.Card` behaviour.
+  Options:
+
+    * `:width` — viewport width in pixels; defaults to `1200`
+    * `:height` — viewport height in pixels; defaults to `630`
+    * `:format` — `:png`, `:jpeg`, `:webp`, or `:svg`; defaults to `:png`
+
+  The macro imports `Phoenix.Component`, records the rendering options, and
+  installs the `OgEx.Card` behaviour.
   """
   defmacro __using__(options) do
     width = Keyword.get(options, :width, 1200)

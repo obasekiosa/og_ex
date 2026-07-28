@@ -1,6 +1,10 @@
 defmodule OgEx.ResourceCache do
   @moduledoc """
-  Bounded in-memory cache for verified remote image resources.
+  Bounded in-memory cache for verified remote resources.
+
+  Entries retain encoded bytes, fingerprints, and HTTP validators. Fresh
+  entries are returned directly; stale entries are available only for
+  conditional revalidation. The table is local to one BEAM node.
   """
 
   use GenServer
@@ -8,7 +12,7 @@ defmodule OgEx.ResourceCache do
   @table __MODULE__
 
   @doc """
-  Starts the resource cache.
+  Starts the process that owns the resource ETS table.
   """
   def start_link(options \\ []) do
     GenServer.start_link(__MODULE__, options, name: __MODULE__)
@@ -49,6 +53,9 @@ defmodule OgEx.ResourceCache do
 
   @doc """
   Stores a resource for `ttl` milliseconds while enforcing configured bounds.
+
+  The default bounds are 128 entries and 25,000,000 bytes. When an insertion
+  would exceed either bound, the current table is cleared first.
   """
   def put(key, resource, ttl) do
     GenServer.call(__MODULE__, {:put, key, resource, ttl})

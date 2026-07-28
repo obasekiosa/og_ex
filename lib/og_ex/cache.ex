@@ -1,6 +1,10 @@
 defmodule OgEx.Cache do
   @moduledoc """
-  Behaviour for rendered image caches.
+  Behaviour for final generated-image caches.
+
+  Configure an implementation with `config :og_ex, cache: MyCache`. Cache keys
+  are internal terms and may change between OgEx versions; implementations
+  should treat them as opaque.
   """
 
   @doc """
@@ -12,7 +16,9 @@ defmodule OgEx.Cache do
   @callback fetch(key :: term()) :: {:ok, binary()} | :error
 
   @doc """
-  Stores an encoded image under a renderer cache key.
+  Stores a complete encoded image under a renderer cache key.
+
+  Failed or partial renders are never passed to this callback.
   """
   @callback put(key :: term(), image :: binary()) :: :ok
 end

@@ -1,10 +1,15 @@
 defmodule OgEx.ResourceLoader.Remote do
   @moduledoc """
-  Secure, opt-in HTTP loader for images embedded in generated cards.
+  Opt-in HTTP loader for images embedded in generated cards.
 
   Each request resolves and validates the destination before connecting. The
   request URL is rewritten to the selected address while TLS verification and
   the Host header retain the original hostname, preventing DNS rebinding.
+
+  Remote loading is disabled by default and requires an explicit hostname
+  allowlist. Redirect targets are subjected to the same scheme, hostname, DNS,
+  and address checks. Direct external `og:image` values do not use this module
+  because OgEx emits those URLs without fetching them.
   """
 
   alias OgEx.Image.Source
@@ -13,7 +18,12 @@ defmodule OgEx.ResourceLoader.Remote do
   @default_max_bytes 5_000_000
 
   @doc """
-  Loads an allowlisted remote source or returns a structured security error.
+  Loads an allowlisted remote source.
+
+  `options` override the application `:remote_images` keyword configuration for
+  this call. The function uses the configured resource cache, performs
+  conditional revalidation when possible, and returns `{:ok, resource}` or a
+  structured error.
   """
   def load(%Source{type: :remote, reference: url} = source, options \\ []) do
     config = Keyword.merge(Application.get_env(:og_ex, :remote_images, []), options)
