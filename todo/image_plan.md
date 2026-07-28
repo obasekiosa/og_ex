@@ -159,6 +159,156 @@ Normalize every accepted input into a private internal structure:
 The normalized source is shared by metadata generation, signed responses,
 resource loading, cache identity, and renderer input.
 
+## Raw in-memory image sources TODO
+
+Allow applications to pass encoded image bytes already held in BEAM memory,
+similar to passing an `ArrayBuffer` or `Uint8Array` to a Node image API. This
+must work without writing a temporary file and without requiring a public or
+private asset path.
+
+The public source form should be explicit:
+
+```elixir
+og: [
+  title: user.name,
+  image: {:binary, avatar_bytes}
+]
+```
+
+Generated cards also need an ergonomic form:
+
+```heex
+<img src={OgEx.memory_image(@avatar_bytes)} width="240" height="240" />
+```
+
+The final API may use a small `%OgEx.Image.Memory{}` value instead of the tuple,
+but it should not introduce a presentation DSL. The card still describes its
+layout with normal HEEx and CSS.
+
+### Direct-image lifecycle
+
+For `image: {:binary, bytes}`:
+
+1. Enforce the encoded-byte limit before native decoding.
+2. Detect format and dimensions from the contents.
+3. Apply the normal SVG and decoded-dimension safety checks.
+4. Calculate a SHA-256 content fingerprint.
+5. Build a signed same-route image URL from the fingerprint and response role.
+6. Retain the verified bytes only for the request lifecycle or configured
+   cache; never serialize them into the signed URL.
+7. Return the original encoded bytes from the signed image request with the
+   verified content type, ETag, and immutable cache policy.
+
+The controller action runs again for the signed image request, so the
+application must reproduce the same bytes or load them from a stable source.
+Dedicated image routes may later allow an application callback to load the
+binary without repeating unrelated page work.
+
+### Generated-card lifecycle
+
+`OgEx.memory_image/1` must provide a source identity that the HTML resource
+scanner can associate with verified bytes. Evaluate these implementation
+options:
+
+- create a request-local resource registry and return an opaque
+  `ogex-memory:` source keyed by the content fingerprint;
+- return a base64 data URL and reuse the existing data loader;
+- return a struct implementing `Phoenix.HTML.Safe` while registering the bytes
+  separately.
+
+A request-local registry is preferable for large images because it avoids
+base64 expansion and a second copy inside rendered HTML. The registry must:
+
+- be scoped to the current card render;
+- use unguessable or content-addressed opaque identifiers;
+- release binaries when the request completes;
+- avoid process-dictionary state that can leak across reused processes;
+- deduplicate identical binaries within one render;
+- expose no raw bytes in telemetry or exceptions.
+
+If the first implementation uses data URLs for simplicity, document the
+approximately 33 percent base64 expansion and apply a lower practical byte
+limit.
+
+### Accepted byte types
+
+The Elixir API should accept binaries and iodata:
+
+```elixir
+OgEx.memory_image(binary)
+OgEx.memory_image(iodata)
+```
+
+Iodata must be converted once at the API boundary. Reject arbitrary terms with
+`ArgumentError`. Do not require the caller to provide a content type; native
+inspection remains authoritative. An optional filename or declared media type
+may be accepted only as diagnostic metadata and must never override detected
+content.
+
+### Memory and security limits
+
+In-memory sources bypass filesystem and HTTP limits unless explicitly routed
+through the same verifier. They must use:
+
+- maximum encoded bytes;
+- maximum width and height;
+- maximum decoded pixels;
+- SVG active-content validation;
+- supported-format validation;
+- per-card total resource bytes;
+- an optional per-request resource-count limit.
+
+Avoid logging or inspecting the binary in structured errors. Errors should
+refer to a safe source type and fingerprint prefix at most.
+
+### Cache identity and updates
+
+The content fingerprint is the source version:
+
+```text
+SHA-256(encoded bytes)
+```
+
+Generated-image cache keys include this fingerprint alongside file and remote
+resource fingerprints. Changing the binary must create a different signed
+direct URL and a different generated-card cache entry.
+
+Do not use `:erlang.phash2/1`, object identity, or process-local references as a
+cross-request cache identity.
+
+### Separate Open Graph and Twitter binaries
+
+Both roles should accept independent bytes:
+
+```elixir
+og: [
+  title: user.name,
+  image: {:binary, wide_bytes},
+  twitter_image: {:binary, square_bytes},
+  twitter_card: "summary"
+]
+```
+
+Signatures must remain role-bound so the wide and square responses cannot be
+substituted for one another.
+
+### Testing
+
+Add tests for:
+
+- direct PNG, JPEG, WebP, GIF, and SVG binaries;
+- an in-memory image embedded in a generated PNG and SVG;
+- iodata normalization;
+- separate Open Graph and Twitter binaries;
+- identical bytes deduplicated within a render;
+- fingerprint changes invalidating signed URLs and final cache entries;
+- oversized encoded data;
+- excessive decoded dimensions and pixels;
+- invalid image bytes;
+- unsafe SVG bytes;
+- telemetry and error messages containing no raw data;
+- request-local registry cleanup after success, error, and process exit.
+
 ## Controller and configuration changes
 
 `og:` will accept either the existing generated-card module:
