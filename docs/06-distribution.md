@@ -16,15 +16,19 @@ CPU architecture, and NIF ABI, downloads the corresponding GitHub release
 archive, and verifies it against the checksum metadata shipped in the Hex
 package.
 
-Rust is required only when developing OgEx, using an unsupported target, or
-forcing a source build:
+Rust is required when developing an unreleased checkout, targeting a platform
+without an archive, or explicitly testing a source build:
 
 ```bash
-OG_EX_BUILD=true mix compile
+OG_EX_BUILD=1 mix deps.compile og_ex --force
 ```
 
 Source builds currently require the Rust version pinned in
 `rust-toolchain.toml`.
+
+Set the environment variable on the first command that compiles OgEx. Without
+it, an unreleased checkout attempts to download an archive for its version and
+receives a 404 because that GitHub release does not exist yet.
 
 ## Supported release targets
 
@@ -41,10 +45,9 @@ Elixir renderer API.
 
 ## Maintainer release flow
 
-1. Replace the development version in `mix.exs` with a release version such as
-   `0.1.0`.
+1. Set the intended version in `mix.exs`.
 2. Run the complete Elixir and Rust test suites.
-3. Commit the version and tag it as `v0.1.0`.
+3. Commit the version and tag the exact commit as `v<version>`.
 4. Push the commit and tag to GitHub.
 5. Wait for `.github/workflows/release.yml` to attach every native archive,
    generate their checksum metadata, test the released NIF, and publish the
@@ -71,6 +74,7 @@ Then confirm the checksum file is included:
 Finally publish with `mix hex.publish`.
 
 Do not publish a stable Hex release before every advertised archive and the
-generated `checksum-Elixir.OgEx.Native.exs` file are available. Development
-versions intentionally force local source compilation, allowing this repository
-and path dependencies to work before release assets exist.
+generated `checksum-Elixir.OgEx.Native.exs` file are available. Unreleased
+versions do not have downloadable archives; maintainers and path dependency
+users must explicitly set `OG_EX_BUILD=1` until the corresponding release has
+been built.
