@@ -475,6 +475,152 @@ paths, response bodies, or secrets in telemetry metadata.
 
 Failed or incomplete card renders must never enter the generated-image cache.
 
+## Failure isolation and fallback plan
+
+Image availability should not make an otherwise healthy HTML page unavailable.
+The HTML route and image route have different responsibilities and must fail
+independently.
+
+### Desired behavior
+
+| Image use | HTML response | Image response |
+| --- | --- | --- |
+| Image embedded in a generated card | `200` with signed image metadata | `200`, configured fallback, or non-cacheable `503` |
+| Direct external image | `200` with the original external URL | Fetched directly by the social platform; OgEx does not proxy it |
+| Direct public static image | `200` with the Phoenix static URL | Served by `Plug.Static`, normally `200` or `404` |
+| Direct private image | `200` with a signed OgEx URL | OgEx lazily loads it and returns `200`, fallback, or `404` |
+
+A missing, unreadable, malformed, or temporarily unavailable image must not
+turn the page's HTML response into a Phoenix `500` by default.
+
+### Make direct local images lazy
+
+The current direct-image builder eagerly reads public and private files to
+discover their format, dimensions, and fingerprint. This means a missing direct
+file raises while the HTML page is being rendered.
+
+Change the direct-image lifecycle:
+
+1. During the HTML request, normalize and safely constrain the declared path,
+   but do not require the file to exist or read its bytes.
+2. For a public image, emit the endpoint's absolute static URL. Let
+   `Plug.Static` determine whether the file exists when the image is requested.
+3. For a private image, sign a stable source identity containing the source
+   type, constrained relative path, optional user version, response role, and
+   controller route.
+4. When the signed private URL is requested, resolve the path again, load and
+   inspect the bytes, calculate the content fingerprint, and send the response.
+5. Continue loading resources embedded in generated cards only on the signed
+   image request, as OgEx already does.
+
+Path normalization must still reject absolute paths, null bytes, traversal, and
+unsafe path segments during the HTML request. Deferring file I/O must not defer
+basic input validation or allow arbitrary paths to be signed.
+
+### Dimensions and cache identity
+
+Lazy direct images cannot always provide intrinsic dimensions during the HTML
+request. Use the following rules:
+
+- honor explicit `:image_width` and `:image_height` metadata;
+- omit dimension tags when dimensions were not explicitly supplied;
+- do not make an eager read solely to populate optional metadata;
+- calculate the ETag from verified bytes on the image response;
+- accept an optional `:image_version` for private direct images so applications
+  can produce a new signed URL when content changes;
+- document that public static assets should use Phoenix digested filenames for
+  content-addressed URLs.
+
+For backwards compatibility, an opt-in strict mode may eagerly verify direct
+local files:
+
+```elixir
+config :og_ex,
+  direct_images: [verify: :eager]
+```
+
+The default should be `verify: :lazy`.
+
+### Error policy
+
+Add a configurable image-response policy:
+
+```elixir
+config :og_ex,
+  image_errors: [
+    fallback: "/images/default-og.png"
+  ]
+```
+
+Initial supported policies:
+
+- no configured fallback: return `404` for a missing private direct image and
+  `503` for generated-card resource or renderer failures;
+- `fallback: "/images/default-og.png"`: resolve and verify a local public
+  fallback once it is needed, then return its bytes from the OgEx image
+  response;
+- `fallback: {:private, "defaults/og.png"}`: resolve the fallback below the
+  configured private root and return its verified bytes;
+- never redirect to an unverified external fallback URL;
+- never cache an error response;
+- successful fallback responses may use a short public cache lifetime rather
+  than `immutable`, because the primary resource may recover.
+
+Fallback handling needs a recursion guard. If the fallback itself is missing or
+invalid, return the original error response without attempting another
+fallback.
+
+Public direct images continue to be served by `Plug.Static`, so OgEx cannot
+substitute a fallback after their URL has been emitted. Applications that need
+OgEx-controlled fallback behavior should declare the image as private or use a
+generated card.
+
+### Response codes
+
+Use stable response semantics:
+
+- `404 Not Found` for a missing signed private direct image;
+- `404 Not Found` for an invalid or expired image signature;
+- `503 Service Unavailable` for temporary remote-resource, decoding, or native
+  renderer failures;
+- `no-store` on every error response;
+- a successful primary image retains immutable caching;
+- a successful fallback uses a configurable short cache duration.
+
+Do not expose internal paths, loader errors, remote response bodies, or native
+error details in the HTTP response.
+
+### Telemetry
+
+Emit enough information to distinguish page health from image health:
+
+```text
+[:og_ex, :image, :exception]
+[:og_ex, :image, :fallback]
+```
+
+Metadata should include only safe classifications such as strategy, source
+type, response role, failure class, and whether a fallback succeeded. It must
+not include private paths, complete URLs, signatures, headers, or response
+bodies.
+
+### Failure-isolation tests
+
+- a missing public direct image leaves the HTML response at `200` and emits its
+  static URL;
+- a missing private direct image leaves the HTML response at `200`;
+- requesting that signed private URL returns a non-cacheable `404`;
+- an invalid private image returns a non-cacheable image error without changing
+  the HTML response;
+- a generated card with a missing local resource leaves HTML at `200` and
+  returns a non-cacheable `503` from its image URL;
+- a generated card with an unavailable remote resource behaves the same way;
+- configured public and private fallbacks return verified image bytes;
+- a broken fallback does not recurse and returns the original status;
+- fallback responses use the configured short cache policy;
+- eager compatibility mode retains strict declaration-time verification;
+- image failures and fallbacks emit sanitized telemetry.
+
 ## Test plan
 
 ### Direct metadata images
