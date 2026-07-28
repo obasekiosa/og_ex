@@ -18,6 +18,9 @@ defmodule OgEx.Controller do
       )
 
   Calls without `:og` keep normal Phoenix behavior.
+
+  The README contains complete controller actions for generated cards,
+  embedded image resources, and direct existing images.
   """
 
   @doc """

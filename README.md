@@ -180,6 +180,10 @@ defmodule MyAppWeb.PostOgCard do
 end
 ```
 
+The controller and card above produce this 1200 × 630 PNG:
+
+![A wide OgEx card generated from HEEx](artifacts/examples/generated-wide.png)
+
 `use OgEx.Card` imports `Phoenix.Component`, so the module can use `~H`,
 function components, and normal HEEx escaping.
 
@@ -251,6 +255,97 @@ Use a root-relative path:
 OgEx resolves the file under the endpoint application's `priv/static`
 directory. It rejects traversal and symlinks before reading the file.
 
+#### Example: embed a local image
+
+The `f_image_sources` demo keeps `logo.svg` at
+`priv/static/images/logo.svg`. Its controller selects a normal generated card:
+
+```elixir
+def embedded_local(conn, _params) do
+  render(conn, :home,
+    title: "Embedded local image",
+    description: "Takumi receives verified bytes loaded from priv/static.",
+    og: MyAppWeb.LocalImageOgCard
+  )
+end
+```
+
+The card uses the public path in ordinary HEEx:
+
+```elixir
+defmodule MyAppWeb.LocalImageOgCard do
+  use OgEx.Card, width: 1200, height: 630, format: :png
+
+  @impl OgEx.Card
+  def metadata(assigns) do
+    %{
+      title: assigns.title,
+      description: assigns.description,
+      image_alt: "Local image demo"
+    }
+  end
+
+  @impl OgEx.Card
+  def version(assigns), do: {assigns.title, assigns.description}
+
+  @impl OgEx.Card
+  def render(assigns) do
+    ~H"""
+    <main class="card">
+      <section>
+        <p class="eyebrow">LOCAL RESOURCE</p>
+        <h1>{@title}</h1>
+        <p>{@description}</p>
+      </section>
+
+      <div class="image-shell">
+        <img src="/images/logo.svg" width="284" height="192" />
+      </div>
+    </main>
+
+    <style>
+      .card {
+        width: 100%;
+        height: 100%;
+        padding: 72px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #f8fafc;
+        background: #111827;
+        font-family: "DejaVu Sans", sans-serif;
+      }
+
+      .image-shell {
+        width: 300px;
+        height: 260px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 40px;
+        background: white;
+      }
+
+      img {
+        width: 284px;
+        height: 192px;
+        object-fit: contain;
+      }
+    </style>
+    """
+  end
+end
+```
+
+OgEx reads and verifies `logo.svg` on the signed image request, registers its
+bytes with Takumi, and includes the file fingerprint in the generated-image
+cache key. The embedded file's intrinsic size does not set the final card size;
+`use OgEx.Card` sets the output to 1200 × 630.
+
+Actual response from the demo:
+
+![A generated OgEx card containing a local Phoenix static image](artifacts/examples/embedded-local.png)
+
 ### Private application files
 
 Private files are not served by `Plug.Static`. Configure their root:
@@ -308,6 +403,116 @@ The request occurs when the signed image URL is requested, not while Phoenix
 renders the HTML page. See [Remote image configuration](#remote-image-configuration)
 for the complete policy.
 
+#### Example: embed an external image
+
+The demo uses an image pinned to the `v0.2.0` repository tag:
+
+```elixir
+@external_image_url "https://raw.githubusercontent.com/obasekiosa/og_ex/v0.2.0/artifacts/og_ex-preview.png"
+```
+
+Only its host is allowed:
+
+```elixir
+config :og_ex,
+  remote_images: [
+    enabled: true,
+    allowed_hosts: ["raw.githubusercontent.com"]
+  ]
+```
+
+The controller passes the URL as a normal card assign:
+
+```elixir
+def embedded_external(conn, _params) do
+  render(conn, :home,
+    title: "Embedded external image",
+    description: "OgEx validates, downloads, caches, and registers the remote image.",
+    external_image_url: @external_image_url,
+    og: MyAppWeb.ExternalImageOgCard
+  )
+end
+```
+
+The card uses that assign in HEEx:
+
+```elixir
+defmodule MyAppWeb.ExternalImageOgCard do
+  use OgEx.Card, width: 1200, height: 630, format: :png
+
+  @impl OgEx.Card
+  def metadata(assigns) do
+    %{
+      title: assigns.title,
+      description: assigns.description,
+      image_alt: "External image demo"
+    }
+  end
+
+  @impl OgEx.Card
+  def version(assigns) do
+    {:uncropped_v2, assigns.title, assigns.external_image_url}
+  end
+
+  @impl OgEx.Card
+  def render(assigns) do
+    ~H"""
+    <main class="card">
+      <div class="image-shell">
+        <img src={@external_image_url} width="560" height="330" />
+      </div>
+
+      <section>
+        <p class="eyebrow">REMOTE RESOURCE</p>
+        <h1>{@title}</h1>
+        <p>{@description}</p>
+      </section>
+    </main>
+
+    <style>
+      .card {
+        width: 100%;
+        height: 100%;
+        padding: 64px;
+        display: flex;
+        align-items: center;
+        gap: 48px;
+        color: #ecfeff;
+        background: linear-gradient(135deg, #082f49, #164e63);
+        font-family: "DejaVu Sans", sans-serif;
+      }
+
+      .image-shell {
+        width: 560px;
+        height: 360px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 30px;
+        background: #172554;
+        overflow: hidden;
+      }
+
+      img {
+        width: 560px;
+        height: 330px;
+        object-fit: contain;
+      }
+    </style>
+    """
+  end
+end
+```
+
+`object-fit: contain` preserves the complete external source. OgEx fetches it
+only for the signed image request and applies the configured host, address,
+redirect, timeout, byte, media-type, and image-content checks before Takumi
+receives the bytes.
+
+Actual response from the demo:
+
+![A generated OgEx card containing a complete allowlisted external image](artifacts/examples/embedded-external.png)
+
 ### Data URLs
 
 Generated cards accept base64 image data URLs:
@@ -343,6 +548,32 @@ end
 OgEx verifies the local file, reads its dimensions, and emits the absolute URL
 returned by the endpoint's static path handling. `Plug.Static` serves the image;
 Takumi and the generated-image cache are not involved.
+
+#### Example: use a public file as `og:image`
+
+The demo points directly to the same Phoenix logo used by the embedded-local
+card:
+
+```elixir
+def direct_image(conn, _params) do
+  render(conn, :home,
+    title: "Direct existing image",
+    description: "The metadata points to Plug.Static; Takumi is not invoked.",
+    og: [
+      title: "Direct existing OgEx image",
+      description: "This og:image is the existing local logo.svg file.",
+      image: "/images/logo.svg",
+      image_alt: "Phoenix flame logo"
+    ]
+  )
+end
+```
+
+The page's `og:image` is the absolute `/images/logo.svg` URL. There is no OgEx
+signature, image render, or generated-image cache lookup. The response is the
+original SVG:
+
+![The direct Phoenix static image used as og:image](artifacts/examples/direct-image.svg)
 
 ### Private existing image
 
@@ -520,6 +751,50 @@ remain bitmap content inside the SVG.
 Direct local resources may be PNG, JPEG, WebP, GIF, or SVG. OgEx detects the
 type from the file contents rather than trusting the extension.
 
+### Output gallery
+
+These files are actual responses from the companion controller examples.
+
+#### Wide PNG — 1200 × 630
+
+```elixir
+use OgEx.Card, width: 1200, height: 630, format: :png
+```
+
+![Wide 1200 by 630 generated PNG](artifacts/examples/generated-wide.png)
+
+#### Square PNG — 600 × 600
+
+```elixir
+use OgEx.Card, width: 600, height: 600, format: :png
+```
+
+Pair a square image with compact Twitter/X metadata when appropriate:
+
+```elixir
+def metadata(assigns) do
+  %{title: assigns.title, twitter_card: "summary"}
+end
+```
+
+![Square 600 by 600 generated PNG](artifacts/examples/generated-square.png)
+
+#### Wide SVG — 1200 × 630
+
+```elixir
+use OgEx.Card, width: 1200, height: 630, format: :svg
+```
+
+![Wide 1200 by 630 generated SVG](artifacts/examples/generated-wide.svg)
+
+#### Square SVG — 600 × 600
+
+```elixir
+use OgEx.Card, width: 600, height: 600, format: :svg
+```
+
+![Square 600 by 600 generated SVG](artifacts/examples/generated-square.svg)
+
 ## Remote image configuration
 
 The default remote loader is opt-in and deny-by-default:
@@ -691,7 +966,7 @@ An invalid image signature returns an empty `404`.
 
 A missing or invalid direct local image currently raises while the HTML
 metadata is built and can make the page return `500`. Lazy direct verification
-and configurable fallback images are designed in `image_plan.md` but are not
+and configurable fallback images are designed in `todo/image_plan.md` but are not
 implemented in this version.
 
 OgEx never caches a failed generated render.

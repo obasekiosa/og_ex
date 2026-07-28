@@ -73,6 +73,7 @@ defmodule OgEx.MixProject do
       # explorations remain in the repository but do not belong in the
       # published documentation sidebar.
       main: "OgEx",
+      assets: %{"artifacts/examples" => "artifacts/examples"},
       extras: [
         "README.md",
         "docs/function-reference.md",

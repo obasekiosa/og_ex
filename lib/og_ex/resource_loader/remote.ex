@@ -10,6 +10,9 @@ defmodule OgEx.ResourceLoader.Remote do
   allowlist. Redirect targets are subjected to the same scheme, hostname, DNS,
   and address checks. Direct external `og:image` values do not use this module
   because OgEx emits those URLs without fetching them.
+
+  The README's embedded-external example shows the complete allowlist,
+  controller, card HEEx, and generated output.
   """
 
   alias OgEx.Image.Source

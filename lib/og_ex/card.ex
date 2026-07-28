@@ -24,6 +24,9 @@ defmodule OgEx.Card do
           ~H"<main style=\"width: 100%; height: 100%\">{@article.title}</main>"
         end
       end
+
+  The README includes complete generated, embedded-local, and embedded-external
+  card modules together with their actual image outputs.
   """
 
   @type metadata :: %{

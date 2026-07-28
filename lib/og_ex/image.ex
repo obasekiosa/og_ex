@@ -14,6 +14,9 @@ defmodule OgEx.Image do
   Most applications use source values in controller declarations or HEEx
   rather than calling this module directly. Custom resource loaders can use
   `normalize/2` and `load/2` at the same boundary as the built-in loader.
+
+  See the README for rendered examples of public and remote sources embedded in
+  a generated card and a public file used directly as `og:image`.
   """
 
   alias OgEx.Image.Source

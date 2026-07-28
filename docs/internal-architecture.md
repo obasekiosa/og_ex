@@ -185,7 +185,8 @@ inserted into the final cache.
 
 Direct local resources are currently loaded while the HTML configuration is
 built. Missing or invalid files therefore raise `ArgumentError` at that
-boundary. The planned lazy failure isolation is documented in `image_plan.md`
+boundary. The planned lazy failure isolation is documented in
+`todo/image_plan.md`
 and must not be described as current behavior.
 
 ## Telemetry
@@ -200,4 +201,3 @@ The implementation emits:
 
 Do not add complete signed URLs, query strings, private paths, request headers,
 or image bodies to telemetry metadata.
-
