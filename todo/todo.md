@@ -32,6 +32,10 @@ Give cards declared through the proposed controller DSL a dedicated generated
 image URL instead of identifying image requests through the page URL's query
 string:
 
+The complete controller DSL, loader, path/query strategy, signing, routing,
+migration, and delivery design is maintained in
+`todo/controller-dsl-image-routes.md`.
+
 ```elixir
 og_card :show, MyAppWeb.PostOgCard
 ```
