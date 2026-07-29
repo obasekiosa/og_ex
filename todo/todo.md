@@ -1,5 +1,84 @@
 # OgEx TODO
 
+## Post-0.3.0 benchmarking
+
+After `0.3.0` is released and its controller DSL, card loaders, and path/query
+image routes are stable, benchmark the complete OgEx request lifecycle. Do not
+optimize from isolated microbenchmarks before measuring realistic Phoenix
+applications.
+
+The benchmark suite should measure:
+
+- HTML requests with no card, a declared card, and rendered head metadata;
+- lazy signature generation and repeated metadata access within one response;
+- query-mode and path-mode image-route dispatch;
+- card-local `load/2` and explicit controller-loader dispatch;
+- loader latency separately from renderer latency;
+- generated PNG and SVG output at every documented card size;
+- Takumi render throughput and latency distributions;
+- local, private, remote, data-URL, and raw in-memory image sources;
+- cold and warm generated-image cache behavior;
+- cold and warm remote-resource cache behavior;
+- request coalescing under simultaneous requests for one cache key;
+- parallel requests for different cards and cache keys;
+- success, missing-resource, renderer-error, and fallback-image paths;
+- Open Graph-only and separate Open Graph/Twitter image generation;
+- memory use, binary retention, garbage collection, scheduler utilization, and
+  reductions;
+- startup time and the cost of declaration registration;
+- native NIF loading and first-render latency;
+- output byte size and encoding time for each supported format;
+- behavior on every supported Linux, macOS, and Windows native target where
+  repeatable CI measurements are practical.
+
+Use a dedicated benchmark application with realistic cards rather than the
+documentation demo. Include:
+
+- fixed local fixtures so runs are reproducible;
+- a controllable local HTTP image server instead of relying on internet
+  latency;
+- cheap, typical, and deliberately expensive loaders;
+- cards with no embedded images, one image, and several images;
+- warm-up runs before recording steady-state results;
+- configurable concurrency and request counts;
+- percentile reporting, including at least p50, p95, and p99;
+- peak and steady-state memory measurements;
+- machine, operating system, OTP, Elixir, Rust, and OgEx version metadata;
+- raw machine-readable results committed or attached to benchmark releases.
+
+Compare at least:
+
+- legacy `0.2.x` query handling against `0.3.0` query mode;
+- `0.3.0` query mode against path mode;
+- cache disabled, cold cache, and warm cache;
+- coalescing disabled and enabled;
+- PNG against SVG;
+- card-local loaders against explicit declaration loaders;
+- source-built native code against released precompiled NIFs;
+- one BEAM scheduler configuration representative of a small deployment and
+  one representative of a larger production host.
+
+Define performance budgets only after collecting the first trustworthy
+baseline. Once established, add CI regression checks with enough tolerance to
+avoid treating shared-runner noise as a product regression. Keep stable
+microbenchmarks in CI and run expensive end-to-end or cross-platform benchmarks
+manually or on scheduled dedicated runners.
+
+Publish a benchmark report that explains:
+
+- the test application and workload;
+- hardware and software versions;
+- exact commands needed to reproduce the results;
+- latency, throughput, memory, and output-size results;
+- known sources of variance;
+- bottlenecks found in loaders, routing, caching, rendering, and encoding;
+- which optimizations are supported by measurements;
+- remaining performance work and the baseline used for future releases.
+
+The benchmark milestone is complete when another developer can reproduce the
+results, compare a later OgEx version against `0.3.0`, and determine whether a
+change improves throughput without hiding latency or memory regressions.
+
 ## Request coalescing
 
 Prevent concurrent cache misses for the same image key from rendering the same
