@@ -14,7 +14,6 @@ defmodule MyAppWeb.PostController do
   use OgEx.Controller
 
   og_card :show, MyAppWeb.PostOgCard,
-    load: &load_post_card/2,
     image_route: :path
 
   def show(conn, %{"id" => id}) do
@@ -22,25 +21,13 @@ defmodule MyAppWeb.PostController do
 
     render(conn, :show, post: post)
   end
-
-  defp load_post_card(_conn, %{"id" => id}) do
-    case Blog.get_public_post(id) do
-      nil ->
-        {:error, :not_found}
-
-      post ->
-        {:ok,
-         %{
-           title: post.title,
-           description: post.summary
-         }}
-    end
-  end
 end
 ```
 
 The normal page request must continue to run `show/2`. An image request must
-run the declared loader and card renderer without running `show/2`.
+run `PostOgCard.load/2` and the card renderer without running `show/2`.
+Applications can override the card-local loader in the declaration when a route
+needs different loading or authorization.
 
 ## Design principles
 
@@ -66,32 +53,85 @@ og_card :show, MyAppWeb.PostOgCard
 
 This associates `PostController.show/2` with `PostOgCard`.
 
-When `load:` is omitted, OgEx should look for an action-specific conventional
-loader:
+The default loader belongs to the card itself:
 
 ```elixir
-defp load_show_og_card(conn, params) do
-  {:ok, %{title: "Post title"}}
+defmodule MyAppWeb.PostOgCard do
+  use OgEx.Card, width: 1200, height: 630
+
+  @impl OgEx.Card
+  def load(_conn, %{"id" => id}) do
+    case Blog.get_public_post(id) do
+      nil ->
+        {:error, :not_found}
+
+      post ->
+        {:ok,
+         %{
+           title: post.title,
+           description: post.summary
+         }}
+    end
+  end
+
+  @impl OgEx.Card
+  def render(assigns) do
+    ~H"""
+    <main>
+      <h1>{@title}</h1>
+      <p>{@description}</p>
+    </main>
+    """
+  end
 end
 ```
 
-Action-specific names avoid ambiguity in controllers with multiple cards:
+This keeps the normal case close to the intended experience: the controller
+declares the card, while the card defines how its image data is loaded and how
+the result looks.
+
+A card reused by several routes can inspect the originating controller and
+action through stable OgEx helpers:
 
 ```elixir
-og_card :index, MyAppWeb.PostIndexOgCard
-og_card :show, MyAppWeb.PostOgCard
+@impl OgEx.Card
+def load(conn, params) do
+  case {OgEx.controller(conn), OgEx.action(conn)} do
+    {MyAppWeb.PostController, :show} ->
+      load_post(params)
 
-defp load_index_og_card(conn, params), do: ...
-defp load_show_og_card(conn, params), do: ...
+    {MyAppWeb.ArticleController, :show} ->
+      load_article(params)
+
+    {MyAppWeb.HomeController, :index} ->
+      {:ok, %{title: "Home"}}
+  end
+end
 ```
 
-An explicit function capture remains the preferred form when the conventional
-name would be unclear:
+Users should not match directly on `conn.private.phoenix_action` or
+`conn.private.phoenix_controller`. In query mode those fields may describe the
+original page route, but in path mode Phoenix initially dispatches to an
+internal OgEx route. OgEx must carry the originating controller and action
+through verification and expose them through its documented helpers.
+
+An explicit controller loader is the escape hatch for a card that is purely
+presentational, is reused across unrelated resources, or requires
+controller-specific authorization:
 
 ```elixir
 og_card :show, MyAppWeb.PostOgCard,
   load: &load_post_card/2
 ```
+
+Loader resolution order:
+
+1. an explicit `load:` option on the `og_card` declaration;
+2. `load/2` implemented by the card module;
+3. a clear compile-time error when neither exists.
+
+OgEx should not infer conventional controller function names. Explicit
+overrides are easier to find, validate, and refactor.
 
 ### Choose the URL strategy
 
@@ -161,8 +201,9 @@ og_card :show, MyAppWeb.PostOgCard,
   load: &load_post_card/2
 ```
 
-Both cards receive the loader result by default. A separate loader can be
-introduced only if real applications demonstrate a need:
+When the declaration supplies `load:`, both cards receive that loader's result
+by default. A separate loader can be introduced only if real applications
+demonstrate a need:
 
 ```elixir
 og_card :show, MyAppWeb.PostOgCard,
@@ -174,6 +215,9 @@ og_card :show, MyAppWeb.PostOgCard,
 ```
 
 The first release should prefer one loader to avoid unnecessary API surface.
+When there is no explicit declaration loader, each selected card owns its
+`load/2` callback. OgEx should avoid calling two loaders if the Open Graph and
+Twitter roles use the same card and normalized request identity.
 
 ### Disable a card conditionally
 
@@ -208,6 +252,53 @@ settled and tested.
 
 ## Loader contract
 
+### Card-local loading is the default
+
+`OgEx.Card` should define `load/2` as an optional callback:
+
+```elixir
+@callback load(Plug.Conn.t(), map()) :: loader_result()
+@optional_callbacks load: 2
+```
+
+The callback runs only for an image request. It must not run merely because the
+normal HTML page renders social metadata.
+
+Keeping loading in the card has important advantages:
+
+- the basic controller declaration has no additional wiring;
+- data selection, metadata, versioning, HEEx, and CSS can be understood from one
+  module;
+- a card owns the shape of the assigns consumed by its template;
+- changing the card's data requirements does not require editing the
+  controller;
+- simple cards are easier to copy, test end to end, and reuse;
+- the API remains close to the component-like experience OgEx is intended to
+  provide.
+
+It also has costs:
+
+- the card becomes coupled to application contexts and persistence;
+- a shared visual card may accumulate controller/action branching;
+- data loading and presentation become two responsibilities in one module;
+- complete card tests may need database fixtures or context mocks;
+- authorization rules can become harder to audit when many routes share a card;
+- matching on controller modules couples the card to routing structure.
+
+The render callback remains independently testable with a plain assigns map
+even when the same module implements `load/2`.
+
+Explicit declaration loaders address the complex cases without making them the
+default. A reusable presentation card can omit `load/2`, while each controller
+provides the correct data boundary:
+
+```elixir
+og_card :show, MyAppWeb.SharedOgCard,
+  load: &load_post_card/2
+```
+
+The explicit loader must override a card-local loader when both are present.
+
 ### Types
 
 The public contract should be documented approximately as:
@@ -230,8 +321,54 @@ The public contract should be documented approximately as:
 
 The function receives:
 
-- the current image-request connection;
+- the current image-request connection enriched with trusted OgEx origin
+  information;
 - the path and query parameters reconstructed by Phoenix for the image request.
+
+Stable accessors should include:
+
+```elixir
+OgEx.controller(conn)
+OgEx.action(conn)
+OgEx.route_params(conn)
+OgEx.image_role(conn)
+```
+
+The first two accessors return the controller and action that declared the card,
+not the internal handler used to serve a path-mode request. `route_params/1`
+returns the normalized parameters permitted by the declaration. `image_role/1`
+returns `:open_graph` or `:twitter`.
+
+The callback should receive `params` directly for ordinary pattern matching:
+
+```elixir
+def load(conn, %{"id" => id, "locale" => locale}) do
+  case OgEx.action(conn) do
+    :show -> load_show(id, locale)
+    :preview -> load_preview(id, locale)
+  end
+end
+```
+
+The implementation spike should compare these accessors with an explicit
+`OgEx.Request` context struct. A context struct may make the origin semantics
+clearer:
+
+```elixir
+%OgEx.Request{
+  conn: conn,
+  controller: MyAppWeb.PostController,
+  action: :show,
+  params: %{"id" => "42"},
+  path_params: %{"id" => "42"},
+  query_params: %{},
+  role: :open_graph
+}
+```
+
+Do not expose raw `conn.private` keys as the public contract. If the context
+struct is selected, the final callback should become `load/1`; OgEx should not
+support two equivalent callback shapes indefinitely.
 
 It returns:
 
@@ -248,7 +385,7 @@ The loader result becomes the assigns passed to:
 
 OgEx should reject a successful loader result that is not a map.
 
-### Loader visibility
+### Explicit loader visibility
 
 Explicit captures of private local functions should work:
 
@@ -419,7 +556,8 @@ tracking parameters such as `utm_source`.
 - accumulate declaration metadata at compile time;
 - validate duplicate action declarations;
 - validate local loader names and arities when possible;
-- generate a private dispatch function for declared loaders;
+- generate a private dispatch function that selects an explicit declaration
+  loader or delegates to the card's `load/2`;
 - install an early controller plug for query-mode image requests;
 - expose declarations to the router integration and runtime registry without
   serializing anonymous functions.
@@ -428,11 +566,11 @@ Potential generated functions:
 
 ```elixir
 def __og_ex_cards__ do
-  %{show: %{card: MyAppWeb.PostOgCard, loader: {:local, :load_post_card, 2}}}
+  %{show: %{card: MyAppWeb.PostOgCard, loader: :card}}
 end
 
 def __og_ex_load__(:show, conn, params) do
-  load_post_card(conn, params)
+  MyAppWeb.PostOgCard.load(conn, params)
 end
 ```
 
@@ -866,7 +1004,7 @@ The DSL should fail compilation for:
 
 Warnings may be more appropriate for:
 
-- a conventional loader that cannot be verified until the module finishes
+- a card-local loader that cannot be verified until the card module finishes
   compiling;
 - wildcard query parameter inclusion;
 - legacy endpoint and new router integrations enabled simultaneously;
@@ -922,9 +1060,12 @@ notes must state the migration consequences clearly.
 
 - a controller can declare one card;
 - a controller can declare multiple actions and cards;
+- a card-local `load/2` is selected when `load:` is omitted;
+- an explicit declaration loader overrides the card-local callback;
 - explicit private loaders dispatch correctly;
-- conventional action-specific loaders dispatch correctly;
 - shared module loaders dispatch correctly if supported;
+- shared cards can distinguish originating controllers, actions, parameters,
+  and image roles without reading raw `conn.private` keys;
 - duplicate declarations fail with a useful error;
 - invalid card modules, options, suffixes, parameter names, and loader arities
   fail clearly;
@@ -1016,7 +1157,11 @@ that image requests do not execute the HTML action.
 - implement `og_card/2` and `og_card/3`;
 - accumulate and validate controller declarations;
 - generate stable declaration IDs;
-- generate private loader dispatch functions;
+- add optional card-local `load/2`;
+- generate dispatch that prefers an explicit declaration loader and otherwise
+  calls the card-local loader;
+- expose trusted origin controller, action, parameters, and image role through
+  stable helpers or the selected request-context API;
 - define loader results and errors;
 - add unit tests without changing request routing.
 
@@ -1118,12 +1263,20 @@ Resolve these through implementation spikes before freezing the API:
 10. Do conditional cards belong in the initial API?
 11. Should fallback images be part of `0.3.0` or a follow-up release?
 12. What token-size target should be enforced in tests?
+13. Should card loaders receive `(conn, params)` with stable OgEx accessors, or
+    one explicit `%OgEx.Request{}` context?
+14. When separate Open Graph and Twitter card modules are declared without an
+    explicit loader, should each card load independently or may the declaration
+    designate one card as the shared data owner?
 
 ## Completion criteria
 
 The feature is complete when:
 
-- a controller action can declare a card and dedicated loader;
+- a controller action can declare only a card when that card implements
+  `load/2`;
+- an explicit controller loader can override card-local loading;
+- a shared card can inspect the trusted originating route and parameters;
 - image requests never execute the normal page action;
 - applications can choose `:path` or `:query` globally and per declaration;
 - path mode requires at most one application-wide router integration;
