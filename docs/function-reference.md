@@ -220,17 +220,24 @@ renderer.
 
 ### `version/1`
 
-Optional callback. Returns stable data that identifies the image content:
+Optional callback. Returns stable data that identifies the image content.
+Include an application-controlled layout revision because OgEx cannot detect
+changes made only to the card's HEEx or CSS:
 
 ```elixir
+@layout_revision 2
+
 @impl OgEx.Card
 def version(%{post: post}) do
-  {:layout_v2, post.id, post.updated_at}
+  {:post_card, @layout_revision, post.id, post.updated_at}
 end
 ```
 
 When omitted, the complete assigns map is used. The return value is hashed and
-does not appear directly in the public URL.
+does not appear directly in the public URL. Here, `:post_card` is an
+application-chosen label and `@layout_revision` is a manual cache-busting
+number—not the OgEx package version. Increase the revision after a
+presentation-only change that must invalidate existing generated images.
 
 ## `OgEx.private_asset/1`
 

@@ -16,7 +16,7 @@ defmodule OgEx.Card do
 
         @impl OgEx.Card
         def version(%{article: article}) do
-          {article.id, article.updated_at}
+          {:article_card, 1, article.id, article.updated_at}
         end
 
         @impl OgEx.Card
@@ -60,8 +60,11 @@ defmodule OgEx.Card do
   map. Implement it in production to exclude assigns that do not affect the
   image.
 
-  Card source and CSS are not hashed automatically. Include a marker such as
-  `:layout_v2` when a presentation change must create a new immutable URL.
+  Card source, HEEx, and CSS are not hashed automatically. A conventional
+  return value is `{:article_card, layout_revision, content_data...}`. The
+  label and revision belong to the application; they are not the OgEx package
+  version. Increase the revision when a presentation-only change must create a
+  new immutable URL and cache entry.
   """
   @callback version(assigns :: map()) :: term()
 

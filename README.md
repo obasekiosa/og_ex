@@ -226,7 +226,7 @@ defmodule MyAppWeb.PostOgCard do
 
   @impl OgEx.Card
   def version(%{post: post}) do
-    {post.id, post.title, post.updated_at}
+    {:post_card, 1, post.id, post.title, post.updated_at}
   end
 
   @impl OgEx.Card
@@ -399,29 +399,37 @@ Dynamic metadata is escaped before it is inserted into the page.
 ### Version generated images
 
 `version/1` should return the smallest stable term that changes whenever the
-rendered image changes:
+rendered image changes. A useful convention is to start with a descriptive
+card name and an integer layout revision:
 
 ```elixir
+@layout_revision 1
+
 @impl OgEx.Card
 def version(%{post: post}) do
-  {post.id, post.title, post.updated_at}
+  {:post_card, @layout_revision, post.id, post.updated_at}
 end
 ```
 
 OgEx hashes this term. It does not place the original value in the public URL.
 The hash contributes to the request signature, ETag, and generated-image cache
-key.
+key. `:post_card` is only a label chosen by the application, and
+`@layout_revision` is only a cache-busting number. Neither value is the OgEx
+package version or the image URL strategy.
 
 If `version/1` is omitted, OgEx hashes the complete assigns map. That is useful
 while developing a card but can create avoidable cache entries when assigns
 contain values that do not affect the image.
 
-Card code and CSS are not automatically part of `version/1`. Change a version
-marker when a deployed style change must produce a new immutable URL:
+Card code, HEEx, and CSS are not automatically part of the returned term.
+Increase the layout revision when a presentation-only change must produce a new
+immutable URL:
 
 ```elixir
+@layout_revision 2
+
 def version(%{post: post}) do
-  {:layout_v2, post.id, post.updated_at}
+  {:post_card, @layout_revision, post.id, post.updated_at}
 end
 ```
 
