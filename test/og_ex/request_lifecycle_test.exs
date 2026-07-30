@@ -46,6 +46,24 @@ defmodule OgEx.RequestLifecycleTest do
              OgEx.TestController.__og_ex_load__(:preview, conn, %{"id" => "42"})
   end
 
+  test "one action cannot declare both path and query cards" do
+    module = "OgEx.DuplicateRouteController#{System.unique_integer([:positive])}"
+
+    source = """
+    defmodule #{module} do
+      use Phoenix.Controller, formats: [:html]
+      use OgEx.Controller
+
+      og_card(:show, OgEx.TestCard, image_route: :path)
+      og_card(:show, OgEx.TestCard, image_route: :query)
+    end
+    """
+
+    assert_raise CompileError, ~r/duplicate og_card declarations for actions: \[:show\]/, fn ->
+      Code.compile_string(source)
+    end
+  end
+
   @secret_key_base String.duplicate("og-ex-test-secret-", 4)
 
   setup_all do
@@ -307,6 +325,38 @@ defmodule OgEx.RequestLifecycleTest do
     assert conn.status == nil
   end
 
+  test "a missing card resource returns a non-cacheable 404" do
+    image_url =
+      page_conn("/posts/missing")
+      |> OgEx.ConfigBuilder.build(OgEx.TestCard, %{title: "Loaded missing"}, image_route: :path)
+      |> Map.fetch!(:image_url)
+
+    response =
+      :get
+      |> conn(URI.parse(image_url).path)
+      |> endpoint_conn()
+      |> OgEx.TestRouter.call(OgEx.TestRouter.init([]))
+
+    assert response.status == 404
+    assert get_resp_header(response, "cache-control") == ["no-store"]
+  end
+
+  test "a card loader exception returns a non-cacheable 503" do
+    image_url =
+      page_conn("/posts/explode")
+      |> OgEx.ConfigBuilder.build(OgEx.TestCard, %{title: "Loaded explode"}, image_route: :path)
+      |> Map.fetch!(:image_url)
+
+    response =
+      :get
+      |> conn(URI.parse(image_url).path)
+      |> endpoint_conn()
+      |> OgEx.TestRouter.call(OgEx.TestRouter.init([]))
+
+    assert response.status == 503
+    assert get_resp_header(response, "cache-control") == ["no-store"]
+  end
+
   test "endpoint initialization warns when router integration is also installed" do
     warning =
       ExUnit.CaptureLog.capture_log(fn ->
@@ -318,8 +368,12 @@ defmodule OgEx.RequestLifecycleTest do
   end
 
   defp page_conn do
+    page_conn("/posts/42?locale=en")
+  end
+
+  defp page_conn(path) do
     :get
-    |> conn("/posts/42?locale=en")
+    |> conn(path)
     |> endpoint_conn()
   end
 

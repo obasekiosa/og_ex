@@ -18,6 +18,10 @@ defmodule OgEx.TestCard do
   def version(%{title: title}), do: title
 
   @impl OgEx.Card
+  def load(_conn, %{"id" => "missing"}), do: {:error, :not_found}
+
+  def load(_conn, %{"id" => "explode"}), do: raise("loader failed")
+
   def load(_conn, %{"id" => id}), do: {:ok, %{title: "Loaded #{id}"}}
 
   @impl OgEx.Card
