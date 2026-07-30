@@ -1,13 +1,50 @@
 defmodule OgEx.RequestLifecycleTest do
   use ExUnit.Case, async: false
 
+  import Plug.Conn
+  import Plug.Test
+
   test "controller integration replaces Phoenix's imported render/3" do
     Code.ensure_loaded!(OgEx.TestController)
     assert function_exported?(OgEx.TestController, :render, 3)
   end
 
-  import Plug.Conn
-  import Plug.Test
+  test "controller declarations default to card-local loading" do
+    assert %{
+             action: :show,
+             card: OgEx.TestCard,
+             image_route: :query
+           } = OgEx.TestController.__og_ex_declaration__(:show)
+
+    conn =
+      :get
+      |> conn("/posts/42")
+      |> endpoint_conn()
+      |> OgEx.Request.put_origin(
+        OgEx.TestController,
+        :show,
+        :image,
+        %{"id" => "42"}
+      )
+
+    assert {:ok, %{title: "Loaded 42"}} =
+             OgEx.TestController.__og_ex_load__(:show, conn, %{"id" => "42"})
+
+    assert OgEx.controller(conn) == OgEx.TestController
+    assert OgEx.action(conn) == :show
+    assert OgEx.route_params(conn) == %{"id" => "42"}
+    assert OgEx.image_role(conn) == :open_graph
+  end
+
+  test "an explicit declaration loader overrides card-local loading" do
+    conn =
+      :get
+      |> conn("/preview/42")
+      |> endpoint_conn()
+
+    assert {:ok, %{title: "Preview 42"}} =
+             OgEx.TestController.__og_ex_load__(:preview, conn, %{"id" => "42"})
+  end
 
   @secret_key_base String.duplicate("og-ex-test-secret-", 4)
 
@@ -152,6 +189,33 @@ defmodule OgEx.RequestLifecycleTest do
 
     assert response.status == 404
     assert response.resp_body == ""
+  end
+
+  test "query image requests invoke the card loader before the controller action" do
+    page_config =
+      page_conn()
+      |> OgEx.ConfigBuilder.build(OgEx.TestCard, %{title: "Loaded 42"})
+
+    signature =
+      page_config.image_url
+      |> URI.parse()
+      |> Map.fetch!(:query)
+      |> URI.decode_query()
+      |> Map.fetch!("__og_ex")
+
+    conn =
+      :get
+      |> conn("/posts/42?__og_ex=#{URI.encode_www_form(signature)}")
+      |> endpoint_conn()
+      |> put_private(:phoenix_controller, OgEx.TestController)
+      |> put_private(:phoenix_action, :show)
+      |> Map.put(:path_params, %{"id" => "42"})
+
+    response = OgEx.Controller.before_action(conn, OgEx.TestController)
+
+    assert response.halted
+    assert response.status == 200
+    assert <<137, "PNG\r\n", 26, "\n", _rest::binary>> = response.resp_body
   end
 
   defp page_conn do

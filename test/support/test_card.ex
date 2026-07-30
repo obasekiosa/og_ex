@@ -18,6 +18,9 @@ defmodule OgEx.TestCard do
   def version(%{title: title}), do: title
 
   @impl OgEx.Card
+  def load(_conn, %{"id" => id}), do: {:ok, %{title: "Loaded #{id}"}}
+
+  @impl OgEx.Card
   def render(assigns) do
     ~H"""
     <main class="card">

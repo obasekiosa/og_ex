@@ -36,6 +36,45 @@ defmodule OgEx do
   defdelegate private_asset(path), to: OgEx.Image
 
   @doc """
+  Returns the controller that declared the current card.
+
+  This is available during declaration-based image loading. It returns `nil`
+  for ordinary requests and legacy render-time cards.
+  """
+  def controller(conn) do
+    case OgEx.Request.origin(conn) do
+      %{controller: controller} -> controller
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Returns the action that declared the current card.
+  """
+  def action(conn) do
+    case OgEx.Request.origin(conn) do
+      %{action: action} -> action
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Returns normalized route parameters for the current image request.
+  """
+  defdelegate route_params(conn), to: OgEx.Request, as: :params
+
+  @doc """
+  Returns `:open_graph` or `:twitter` for the current image request.
+  """
+  def image_role(conn) do
+    case OgEx.Request.origin(conn) do
+      %{role: :image} -> :open_graph
+      %{role: :twitter_image} -> :twitter
+      _ -> nil
+    end
+  end
+
+  @doc """
   Initializes the compatibility plug.
 
   New applications do not need this plug because controller rendering fetches

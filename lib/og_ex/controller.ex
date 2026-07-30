@@ -36,6 +36,15 @@ defmodule OgEx.Controller do
       # exclude that import before defining the OgEx-aware local function so
       # consuming controllers compile without an import conflict.
       import Phoenix.Controller, except: [render: 3]
+      import OgEx.Controller, only: [og_card: 2, og_card: 3]
+
+      Module.register_attribute(__MODULE__, :og_ex_declarations, accumulate: true)
+      @before_compile OgEx.Controller
+
+      # Query-mode image requests are intercepted before Phoenix invokes the
+      # controller action. Controllers without a matching declaration pass
+      # through unchanged.
+      plug :__og_ex_before_action__
 
       # Calls without `:og` are delegated unchanged, so installing OgEx does
       # not alter ordinary controller renders.
@@ -46,7 +55,134 @@ defmodule OgEx.Controller do
       `:title` and `:image`.
       """
       def render(conn, template, options) do
-        OgEx.Controller.render(conn, template, options)
+        OgEx.Controller.render(conn, template, options, __MODULE__)
+      end
+
+      @doc false
+      def __og_ex_before_action__(conn, _options) do
+        OgEx.Controller.before_action(conn, __MODULE__)
+      end
+    end
+  end
+
+  @doc """
+  Declares the card used by one controller action.
+
+  The card's optional `load/2` callback supplies assigns for standalone image
+  requests. Pass `load: &function/2` to override card-local loading.
+  """
+  defmacro og_card(action, card, options \\ []) do
+    action = Macro.expand(action, __CALLER__)
+    card = Macro.expand(card, __CALLER__)
+
+    unless is_atom(action) do
+      raise ArgumentError,
+            "og_card action must be a literal atom, got: #{Macro.to_string(action)}"
+    end
+
+    unless is_atom(card) do
+      raise ArgumentError, "og_card card must expand to a module, got: #{Macro.to_string(card)}"
+    end
+
+    unless is_list(options) do
+      raise ArgumentError, "og_card options must be a literal keyword list"
+    end
+
+    allowed_options = [:load, :image_route]
+    unknown_options = Keyword.keys(options) -- allowed_options
+
+    if unknown_options != [] do
+      raise ArgumentError, "unknown og_card options: #{inspect(unknown_options)}"
+    end
+
+    image_route = Keyword.get(options, :image_route, :default)
+    validate_image_route!(image_route)
+
+    declaration = %{
+      action: action,
+      card: card,
+      image_route: image_route,
+      loader: Keyword.get(options, :load)
+    }
+
+    quote do
+      @og_ex_declarations unquote(Macro.escape(declaration))
+    end
+  end
+
+  @doc false
+  defmacro __before_compile__(environment) do
+    declarations =
+      environment.module
+      |> Module.get_attribute(:og_ex_declarations)
+      |> Enum.reverse()
+
+    actions = Enum.map(declarations, & &1.action)
+    duplicate_actions = actions -- Enum.uniq(actions)
+
+    if duplicate_actions != [] do
+      raise CompileError,
+        file: environment.file,
+        line: environment.line,
+        description:
+          "duplicate og_card declarations for actions: #{inspect(Enum.uniq(duplicate_actions))}"
+    end
+
+    declaration_clauses =
+      Enum.map(declarations, fn declaration ->
+        public_declaration = Map.delete(declaration, :loader)
+
+        quote do
+          def __og_ex_declaration__(unquote(declaration.action)) do
+            unquote(Macro.escape(public_declaration))
+          end
+        end
+      end)
+
+    loader_clauses =
+      Enum.map(declarations, fn declaration ->
+        loader_call =
+          case declaration.loader do
+            nil ->
+              quote do
+                if Code.ensure_loaded?(unquote(declaration.card)) and
+                     function_exported?(unquote(declaration.card), :load, 2) do
+                  unquote(declaration.card).load(conn, params)
+                else
+                  {:error, :missing_loader}
+                end
+              end
+
+            {:&, _metadata, [{:/, _slash_metadata, [{name, _, context}, 2]}]}
+            when is_atom(name) and (is_atom(context) or is_nil(context)) ->
+              quote do
+                unquote(name)(conn, params)
+              end
+
+            loader ->
+              quote do
+                loader = unquote(loader)
+                loader.(conn, params)
+              end
+          end
+
+        quote do
+          def __og_ex_load__(unquote(declaration.action), conn, params) do
+            unquote(loader_call)
+          end
+        end
+      end)
+
+    quote do
+      unquote_splicing(declaration_clauses)
+      def __og_ex_declaration__(_action), do: nil
+
+      unquote_splicing(loader_clauses)
+      def __og_ex_load__(_action, _conn, _params), do: {:error, :unknown_declaration}
+
+      @doc false
+      def __og_ex_declarations__ do
+        unquote(Macro.escape(Enum.map(declarations, &Map.delete(&1, :loader))))
       end
     end
   end
@@ -63,8 +199,10 @@ defmodule OgEx.Controller do
 
   This function expects controller render options as a keyword list or map.
   """
-  def render(conn, template, options) when is_list(options) or is_map(options) do
-    {declaration, page_assigns} = pop_card(options)
+  def render(conn, template, options, controller)
+      when (is_list(options) or is_map(options)) and is_atom(controller) do
+    {explicit_declaration, page_assigns} = pop_card(options)
+    declaration = explicit_declaration || declared_card(controller, action(conn))
 
     if declaration do
       # Build the same deterministic config during the human page request and
@@ -91,6 +229,54 @@ defmodule OgEx.Controller do
     end
   end
 
+  @doc """
+  Intercepts declaration-based query image requests before controller actions.
+  """
+  def before_action(conn, controller) do
+    action = action(conn)
+
+    if OgEx.Request.image_request?(conn) and declaration(controller, action) do
+      dispatch_image(conn, controller, action)
+    else
+      conn
+    end
+  end
+
+  @doc false
+  def dispatch_image(conn, controller, action) do
+    declaration = declaration(controller, action)
+    params = OgEx.Request.application_params(conn)
+    conn = OgEx.Request.put_origin(conn, controller, action, :image, params)
+
+    result =
+      try do
+        controller.__og_ex_load__(action, conn, params)
+      catch
+        kind, reason -> {:error, {:loader_exception, kind, reason}}
+      end
+
+    case result do
+      {:ok, assigns} when is_map(assigns) ->
+        config = OgEx.ConfigBuilder.build(conn, declaration.card, assigns)
+
+        conn
+        |> OgEx.ImageResponse.send(config)
+        |> Plug.Conn.halt()
+
+      {:error, reason} ->
+        send_loader_error(conn, controller, action, reason)
+
+      other ->
+        send_loader_error(conn, controller, action, {:invalid_loader_result, other})
+    end
+  end
+
+  # Backward-compatible entry point retained for direct callers.
+  @doc false
+  def render(conn, template, options) when is_list(options) or is_map(options) do
+    render(conn, template, options, conn.private[:phoenix_controller])
+  end
+
   # Removes the optional card module from keyword-list assigns while preserving
   # every ordinary Phoenix template assign.
   defp pop_card(options) when is_list(options), do: Keyword.pop(options, :og)
@@ -99,5 +285,49 @@ defmodule OgEx.Controller do
   # shape expected by Phoenix.Controller.render/3.
   defp pop_card(options) when is_map(options) do
     {Map.get(options, :og), Map.delete(options, :og)}
+  end
+
+  defp declared_card(nil, _action), do: nil
+
+  defp declared_card(controller, action) do
+    case declaration(controller, action) do
+      %{card: card} -> card
+      _ -> nil
+    end
+  end
+
+  defp declaration(nil, _action), do: nil
+  defp declaration(_controller, nil), do: nil
+
+  defp declaration(controller, action) do
+    if function_exported?(controller, :__og_ex_declaration__, 1) do
+      controller.__og_ex_declaration__(action)
+    end
+  end
+
+  defp action(conn), do: conn.private[:phoenix_action]
+
+  defp send_loader_error(conn, controller, action, reason) do
+    status = if reason in [:not_found, :forbidden], do: :not_found, else: :service_unavailable
+
+    :telemetry.execute(
+      [:og_ex, :loader, :exception],
+      %{system_time: System.system_time()},
+      %{controller: controller, action: action, reason: reason}
+    )
+
+    conn
+    |> Plug.Conn.put_resp_header("cache-control", "no-store")
+    |> Plug.Conn.send_resp(status, "")
+    |> Plug.Conn.halt()
+  end
+
+  defp validate_image_route!(:default), do: :ok
+  defp validate_image_route!(:path), do: :ok
+  defp validate_image_route!(:query), do: :ok
+
+  defp validate_image_route!(other) do
+    raise ArgumentError,
+          "og_card :image_route must be :path or :query, got: #{inspect(other)}"
   end
 end

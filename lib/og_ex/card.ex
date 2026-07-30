@@ -65,7 +65,20 @@ defmodule OgEx.Card do
   """
   @callback version(assigns :: map()) :: term()
 
-  @optional_callbacks version: 1
+  @doc """
+  Loads assigns for a standalone image request.
+
+  The callback receives the image request connection and normalized route
+  parameters. Use `OgEx.controller/1`, `OgEx.action/1`, and
+  `OgEx.image_role/1` when one card serves several declarations.
+
+  A declaration-specific `load:` function overrides this callback.
+  """
+  @callback load(conn :: Plug.Conn.t(), params :: map()) ::
+              {:ok, map()}
+              | {:error, :not_found | :forbidden | :unavailable | term()}
+
+  @optional_callbacks version: 1, load: 2
 
   @doc """
   Configures a module as an OgEx card.
