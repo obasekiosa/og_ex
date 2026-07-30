@@ -17,22 +17,87 @@ defmodule MyAppWeb.PostController do
 end
 ```
 
-The macro replaces the controller-local `render/3`. Renders without an `:og`
-option keep normal Phoenix behavior.
+The macro imports `og_card/2` and `og_card/3`, installs query-image
+interception, and replaces the controller-local `render/3`. Undeclared actions
+and renders without an `:og` option keep normal Phoenix behavior.
 
-### Generated card declaration
+### `og_card/2` and `og_card/3`
 
-Pass an `OgEx.Card` module and the assigns used by that module:
+Associate a generated card with one controller action:
 
 ```elixir
-render(conn, :show,
-  post: post,
-  og: MyAppWeb.PostOgCard
-)
+og_card :show, MyAppWeb.PostOgCard
 ```
 
-The same controller action handles the normal HTML request and the later signed
-image request. The Phoenix page template is skipped on the image branch.
+Options:
+
+| Option | Default | Purpose |
+| --- | --- | --- |
+| `:load` | Card `load/2` | Explicit local function capture used instead of card-local loading |
+| `:image_route` | Application setting, then `:path` | `:path` or `:query` |
+
+```elixir
+og_card :show, MyAppWeb.PostOgCard,
+  load: &load_post_card/2,
+  image_route: :query
+```
+
+The normal action supplies HTML render assigns. A later image request invokes
+the selected loader without invoking the action.
+
+An action may have only one declaration. Declaring the same action twice,
+including once with `image_route: :path` and once with `image_route: :query`,
+raises at compile time. The declaration-level strategy may override the
+application default, and separate actions may choose separate strategies.
+
+### Router integration
+
+For path URLs, import `OgEx.Router` and place its route after application
+routes:
+
+```elixir
+import OgEx.Router
+
+# Application routes...
+og_ex_routes()
+```
+
+### Endpoint integration
+
+As an alternative, place OgEx immediately before the Phoenix router:
+
+```elixir
+plug OgEx, router: MyAppWeb.Router
+plug MyAppWeb.Router
+```
+
+Router and endpoint integrations are mutually exclusive. OgEx warns when the
+endpoint can detect that both were installed.
+
+Query declarations can rely on the controller integration alone.
+
+### Runnable applications
+
+The
+[`og_ex_demo`](https://github.com/obasekiosa/og_ex_demo) repository keeps each
+example as an independent Mix project:
+
+- [`v0_1_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_1_0)
+  demonstrates the published `0.1.0` generated-card API.
+- [`f_image_sources`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/f_image_sources)
+  demonstrates published `0.2.0` local, external, and direct image sources.
+- [`v0_3_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_3_0)
+  demonstrates the controller DSL and both image URL strategies.
+
+### Legacy generated card declaration
+
+The `0.2.0` render-time declaration remains supported:
+
+```elixir
+render(conn, :show, post: post, og: MyAppWeb.PostOgCard)
+```
+
+This form runs the controller action before recognizing the image request.
 
 ### Direct image declaration
 
@@ -87,6 +152,34 @@ Options:
 | `:format` | `:png` | `:png`, `:jpeg`, `:webp`, `:svg` |
 
 The macro imports `Phoenix.Component` and installs the callbacks below.
+
+### `load/2`
+
+Optional callback used by `og_card` declarations when no explicit `load:`
+override exists:
+
+```elixir
+@impl OgEx.Card
+def load(_conn, %{"id" => id}) do
+  case Blog.get_public_post(id) do
+    nil -> {:error, :not_found}
+    post -> {:ok, %{post: post}}
+  end
+end
+```
+
+The callback receives the image connection and normalized route parameters.
+It returns `{:ok, map}` or `{:error, reason}`. `:not_found` and `:forbidden`
+produce a non-cacheable `404`; other failures produce a non-cacheable `503`.
+
+Use these helpers when a card serves multiple declarations:
+
+```elixir
+OgEx.controller(conn)
+OgEx.action(conn)
+OgEx.route_params(conn)
+OgEx.image_role(conn)
+```
 
 ### `metadata/1`
 

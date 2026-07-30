@@ -582,22 +582,7 @@ A controller macro cannot reliably add routes to a Phoenix router that has
 already been compiled. Path mode therefore requires a single application-wide
 router integration.
 
-Proposed API:
-
-```elixir
-defmodule MyAppWeb.Router do
-  use MyAppWeb, :router
-  use OgEx.Router
-
-  # Existing pipelines and routes remain unchanged.
-end
-```
-
-`use OgEx.Router` should install one internal handler capable of recognizing
-signed OgEx path requests. It must not require one route declaration per
-controller action.
-
-An alternative explicit macro may be clearer about route ordering:
+Selected router API:
 
 ```elixir
 defmodule MyAppWeb.Router do
@@ -610,9 +595,8 @@ defmodule MyAppWeb.Router do
 end
 ```
 
-This is more honest about where a catch-all or suffix route is inserted and
-makes conflicts easier to reason about. The implementation spike should compare
-both APIs before the public contract is finalized.
+The explicit macro makes route ordering visible. It installs one internal
+handler and does not require one route declaration per controller action.
 
 ### Route ordering
 
@@ -640,19 +624,28 @@ proves them reliable.
 
 ### Endpoint integration
 
-The current endpoint integration should remain available during migration.
+Support endpoint integration as a first-class alternative:
 
-The target architecture is:
+```elixir
+plug OgEx, router: MyAppWeb.Router
+plug MyAppWeb.Router
+```
 
-- query requests intercepted by the controller plug before action dispatch;
-- path requests handled through `OgEx.Router`;
-- signing performed lazily only when head metadata is rendered;
-- no general endpoint plug required for new applications unless Phoenix routing
-  constraints make it unavoidable.
+The endpoint plug recognizes candidate path and query image requests, resolves
+their original page route through the configured router, and dispatches the
+same declaration loader used by router mode. Ordinary requests pass through.
 
-Removing endpoint integration is a compatibility decision and should not happen
-in the same release that introduces the new DSL unless a deprecation path is
-documented.
+Applications must choose exactly one path integration:
+
+- `og_ex_routes()` at the end of the router; or
+- `plug OgEx, router: MyAppWeb.Router` immediately before the router.
+
+OgEx should warn when endpoint initialization can determine that the configured
+router already contains `OgEx.Router`. If both remain installed, the endpoint
+plug receives the request first.
+
+Query-only applications need neither path integration because
+`use OgEx.Controller` intercepts the signed query before action dispatch.
 
 ## Declaration registry
 
@@ -1181,18 +1174,19 @@ lifecycle before path routing is introduced.
 
 ### Phase 3: Phoenix router spike
 
-- prototype `use OgEx.Router`;
-- prototype explicit `og_ex_routes()`;
+- implement explicit `og_ex_routes()`;
 - test suffix routes against Phoenix static, dynamic, nested, scoped, and
   catch-all routes;
-- decide between same-page suffixes and a reserved `/_og_ex` prefix;
+- verify same-page suffixes before considering a reserved `/_og_ex` fallback;
 - document the decision and rejected alternatives.
 
 Deliverable: a tested route design, not yet necessarily a stable public API.
 
 ### Phase 4: Path-mode routing
 
-- implement the selected router integration;
+- implement the shared dispatcher;
+- implement both the router macro and endpoint plug integrations;
+- warn when both are installed;
 - generate same-page or reserved-prefix URLs;
 - connect declaration lookup and loader dispatch;
 - add conflict detection;
@@ -1246,26 +1240,23 @@ Do not tag the version until:
 
 ## Open decisions
 
-Resolve these through implementation spikes before freezing the API:
+The router API, dual integration support, card-local `load/2`, stable OgEx
+connection accessors, and same-page suffix format are now selected. Resolve the
+remaining questions through implementation spikes before freezing the API:
 
-1. Should router integration use `use OgEx.Router` or explicit
-   `og_ex_routes()`?
-2. Can same-page suffix routes be implemented without unsafe catch-all routing?
-3. Should path URLs include a format extension?
-4. Which query parameters participate in card identity by default?
-5. How does the HTML request obtain metadata and content version without
+1. Should path URLs include a format extension?
+2. Which query parameters participate in card identity by default?
+3. How does the HTML request obtain metadata and content version without
    executing the image loader?
-6. Should remote shared loaders ship in the first DSL release?
-7. Should loader `:forbidden` map to `404` unconditionally?
-8. Should declaration tokens expire, or rely solely on version changes and key
+4. Should remote shared loaders ship in the first DSL release?
+5. Should loader `:forbidden` map to `404` unconditionally?
+6. Should declaration tokens expire, or rely solely on version changes and key
    rotation?
-9. How long must legacy query tokens remain valid?
-10. Do conditional cards belong in the initial API?
-11. Should fallback images be part of `0.3.0` or a follow-up release?
-12. What token-size target should be enforced in tests?
-13. Should card loaders receive `(conn, params)` with stable OgEx accessors, or
-    one explicit `%OgEx.Request{}` context?
-14. When separate Open Graph and Twitter card modules are declared without an
+7. How long must legacy query tokens remain valid?
+8. Do conditional cards belong in the initial API?
+9. Should fallback images be part of `0.3.0` or a follow-up release?
+10. What token-size target should be enforced in tests?
+11. When separate Open Graph and Twitter card modules are declared without an
     explicit loader, should each card load independently or may the declaration
     designate one card as the shared data owner?
 

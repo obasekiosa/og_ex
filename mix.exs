@@ -85,7 +85,7 @@ defmodule OgEx.MixProject do
         Maintainers: ["docs/internal-architecture.md", "docs/native-releases.md"]
       ],
       groups_for_modules: [
-        "Controller API": [OgEx, OgEx.Controller, OgEx.Card],
+        "Controller API": [OgEx, OgEx.Controller, OgEx.Card, OgEx.Router],
         "Image API": [OgEx.Image, OgEx.Image.Source, OgEx.Image.Resource],
         "Extension points": [
           OgEx.Renderer,

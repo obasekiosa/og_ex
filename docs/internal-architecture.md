@@ -6,20 +6,65 @@ belongs in the README and public API reference.
 
 ## Controller dispatch
 
-`OgEx.Controller.__using__/1` removes Phoenix's imported `render/3` and defines
-a controller-local replacement. `OgEx.Controller.render/3` removes the `:og`
-declaration from the template assigns and delegates ordinary renders unchanged.
+`OgEx.Controller.__using__/1` imports the `og_card` declaration macros,
+installs an early query-image plug, removes Phoenix's imported `render/3`, and
+defines a controller-local replacement.
 
-For an OgEx declaration:
+Each declaration compiles into controller-owned metadata and loader dispatch:
 
-1. `OgEx.ConfigBuilder.build/3` creates an `OgEx.Config`.
-2. `OgEx.Request.image_request?/1` checks the reserved `__og_ex` parameter.
-3. A normal request registers `OgEx.Head.put_config/2` and renders the Phoenix
-   template.
-4. A signed request calls `OgEx.ImageResponse.send/2` without rendering the
-   Phoenix page template.
+```elixir
+controller.__og_ex_declaration__(action)
+controller.__og_ex_load__(action, conn, params)
+```
 
-The controller action has already run by the time dispatch reaches `render/3`.
+The generated loader dispatch calls an explicit declaration loader when one
+exists and otherwise delegates to `Card.load/2`.
+
+For a normal declared request:
+
+1. Phoenix calls the page action.
+2. The action calls its ordinary `render/3` without an `:og` assign.
+3. the controller replacement finds the declaration through
+   `conn.private.phoenix_action`;
+4. `OgEx.ConfigBuilder.build/4` creates an `OgEx.Config`;
+5. `OgEx.Head.put_config/2` registers metadata injection;
+6. Phoenix renders the normal template.
+
+For a query image request, the generated controller plug checks `__og_ex`,
+loads image assigns, sends the image, and halts before Phoenix invokes the
+action.
+
+The legacy `render(..., og: declaration)` branch remains supported. In that
+branch the controller action has already run before dispatch reaches
+`render/3`.
+
+## Path integrations
+
+`OgEx.Dispatcher` is shared by both path integration options.
+
+`OgEx.Router.og_ex_routes/1` adds a final unmatched-path route. Application
+routes therefore take priority. The handler recognizes
+`opengraph-image/SIGNATURE` and `twitter-image/SIGNATURE`, recovers the original
+page path, resolves it with `Phoenix.Router.route_info/4`, and dispatches the
+controller declaration.
+
+The endpoint alternative:
+
+```elixir
+plug OgEx, router: MyAppWeb.Router
+```
+
+performs the candidate check before Phoenix routing. Requests that do not
+resolve to an OgEx declaration pass through unchanged.
+
+These integrations are mutually exclusive. Endpoint initialization inspects a
+compiled configured router and logs a warning when its route table already
+contains `OgEx.Router`.
+
+Before loading, the dispatcher stores trusted originating controller, action,
+role, page path, signature, and normalized parameters through
+`OgEx.Request.put_origin/6`. Card code accesses those values through stable
+top-level helpers rather than the internal Phoenix handler action.
 
 ## Configuration strategies
 
@@ -50,6 +95,10 @@ characters. The signature binds:
 - deterministic image identity;
 - Open Graph or Twitter image role;
 - request path.
+
+Path mode places the signature after an `opengraph-image` or `twitter-image`
+suffix. Query mode places it in `__og_ex`. Generated cards emit distinct
+role-bound URLs even when both roles render the same card.
 
 The key is domain-separated from Phoenix's `secret_key_base`. Card assigns,
 private paths, and metadata are not serialized into the URL.

@@ -1,23 +1,25 @@
 defmodule OgEx.Controller do
   @moduledoc """
-  Adds OgEx declarations to a Phoenix controller's `render/3` call.
+  Adds action-level social-card declarations to a Phoenix controller.
 
   Use it after the application's normal controller setup:
 
       use MyAppWeb, :controller
       use OgEx.Controller
 
-  A render may select a generated card:
+  Declare a generated card once:
 
-      render(conn, :show, post: post, og: MyAppWeb.PostOgCard)
+      og_card :show, MyAppWeb.PostOgCard
 
-  Or an existing image:
+  The card's `load/2` callback runs only for signed image requests. An explicit
+  controller loader can override it:
 
-      render(conn, :about,
-        og: [title: "About Acme", image: "/images/about-og.png"]
-      )
+      og_card :show, MyAppWeb.PostOgCard,
+        load: &load_post_card/2,
+        image_route: :query
 
-  Calls without `:og` keep normal Phoenix behavior.
+  Existing `render(..., og: Card)` and direct-image declarations remain
+  supported for compatibility.
 
   The README contains complete controller actions for generated cards,
   embedded image resources, and direct existing images.
@@ -188,14 +190,13 @@ defmodule OgEx.Controller do
   end
 
   @doc """
-  Dispatches a controller render to either Phoenix HTML or an OgEx image.
+  Dispatches a controller render to Phoenix HTML or a legacy OgEx image.
 
   Without `:og`, this delegates to `Phoenix.Controller.render/3`.
 
-  With a card module, normal requests register generated-image metadata and
-  signed requests return the card image. With direct metadata, public and
-  external sources are emitted as existing URLs while private sources use a
-  signed response.
+  A declared action automatically selects its card when no explicit `:og`
+  option exists. Query image requests for declared actions are intercepted by
+  the controller plug before this function or the action executes.
 
   This function expects controller render options as a keyword list or map.
   """

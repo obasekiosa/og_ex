@@ -1,29 +1,33 @@
 # OgEx
 
-OgEx adds Open Graph and Twitter/X images to Phoenix controller responses. A
-controller can either render a card from HEEx or point its metadata at an
-existing image:
+OgEx adds Open Graph and Twitter/X images to Phoenix controller responses.
+Declare a card for an action, load only the data needed by its image, and write
+the card with ordinary HEEx and CSS:
 
 ```elixir
-# Generate an image from HEEx.
-render(conn, :show, post: post, og: MyAppWeb.PostOgCard)
-
-# Use an existing image.
-render(conn, :about,
-  og: [
-    title: "About Acme",
-    image: "/images/about-og.png"
-  ]
-)
+og_card :show, MyAppWeb.PostOgCard
 ```
 
-Generated images are served from a signed version of the page URL. You do not
-add an image controller or image route.
+```elixir
+def load(_conn, %{"id" => id}) do
+  post = Blog.get_public_post!(id)
+  {:ok, %{title: post.title, description: post.summary}}
+end
+```
+
+Generated images are served from signed versions of the page URL. The image
+request runs the card loader without running the normal page action.
 
 ## Release status
 
 OgEx `0.2.0` is the current release. It includes image resources inside
 generated cards and direct-image metadata.
+
+The `master` branch currently targets `0.3.0`. The controller declarations,
+card-local loaders, path/query selection, and router/endpoint integrations
+documented below are development APIs until `0.3.0` is released. Applications
+using Hex package `0.2.0` should continue using the
+[legacy render declaration](#legacy-020-render-declarations).
 
 OgEx is still a `0.x` package. Review release notes before upgrading because
 minor releases may change public APIs.
@@ -82,30 +86,132 @@ defmodule MyAppWeb.PostController do
   use MyAppWeb, :controller
   use OgEx.Controller
 
+  og_card :show, MyAppWeb.PostOgCard
+
   def show(conn, %{"id" => id}) do
     post = MyApp.Blog.get_post!(id)
-
-    render(conn, :show,
-      post: post,
-      og: MyAppWeb.PostOgCard
-    )
+    render(conn, :show, post: post)
   end
 end
 ```
 
-`OgEx.Controller` replaces the controller-local `render/3`. Calls without an
-`:og` option still delegate to `Phoenix.Controller.render/3`.
+`og_card :show, PostOgCard` associates the card with `show/2`.
+`OgEx.Controller` installs an early query-image plug and replaces the
+controller-local `render/3` so the normal HTML response automatically receives
+the card metadata. Actions without a declaration keep normal Phoenix behavior.
 
-No endpoint plug is required. `OgEx` still implements `Plug` for compatibility
-with early integrations, but new applications should not install it.
+The default image URL strategy is `:path`. Choose exactly one path integration
+for each Phoenix router.
+
+### Recommended: router integration
+
+Import `OgEx.Router` and call `og_ex_routes()` after every application route:
+
+```elixir
+defmodule MyAppWeb.Router do
+  use MyAppWeb, :router
+  import OgEx.Router
+
+  scope "/", MyAppWeb do
+    pipe_through :browser
+
+    get "/posts/:id", PostController, :show
+  end
+
+  # Keep this after application routes and custom catch-alls.
+  og_ex_routes()
+end
+```
+
+Application routes take priority. The final OgEx route handles unmatched signed
+paths such as:
+
+```text
+/posts/42/opengraph-image/SIGNED_TOKEN
+/posts/42/twitter-image/SIGNED_TOKEN
+```
+
+### Alternative: endpoint integration
+
+Applications that want interception before Phoenix routing can install OgEx
+immediately before their router:
+
+```elixir
+defmodule MyAppWeb.Endpoint do
+  use Phoenix.Endpoint, otp_app: :my_app
+
+  # Existing endpoint plugs...
+
+  plug OgEx, router: MyAppWeb.Router
+  plug MyAppWeb.Router
+end
+```
+
+The endpoint plug performs a cheap candidate check on every request. Signed
+image requests are resolved through `MyAppWeb.Router`, loaded, rendered, and
+halted before the router runs. Ordinary requests pass through unchanged.
+
+Do not install both `og_ex_routes()` and the endpoint plug. OgEx logs a warning
+when endpoint initialization can see that the configured router already
+contains the OgEx route. If both remain installed, the endpoint plug receives
+the request first.
+
+### Choose path or query URLs
+
+Set the application default:
+
+```elixir
+# config/config.exs
+config :og_ex,
+  image_route: :path
+```
+
+Or override one declaration:
+
+```elixir
+og_card :show, MyAppWeb.PostOgCard,
+  image_route: :query
+```
+
+Query mode produces:
+
+```text
+/posts/42?__og_ex=SIGNED_TOKEN
+```
+
+`use OgEx.Controller` intercepts that request before `show/2` executes. Query
+mode does not require `og_ex_routes()` or the endpoint plug. Installing the
+endpoint integration also allows query requests to be intercepted before
+Phoenix routing.
+
+Precedence is the declaration's `image_route:`, then
+`config :og_ex, :image_route`, then the built-in `:path` default.
+
+Declare an action only once. A controller cannot register both a path card and
+a query card for the same action; OgEx raises a compile error instead of
+silently choosing one. One declaration may still override the application
+default, so different actions in the same controller can use different
+strategies.
 
 ## Define a generated card
 
-A card supplies metadata, a stable version, and HEEx:
+A card normally loads its image assigns and supplies metadata, a stable version,
+and HEEx:
 
 ```elixir
 defmodule MyAppWeb.PostOgCard do
   use OgEx.Card, width: 1200, height: 630, format: :png
+
+  @impl OgEx.Card
+  def load(_conn, %{"id" => id}) do
+    case MyApp.Blog.get_public_post(id) do
+      nil ->
+        {:error, :not_found}
+
+      post ->
+        {:ok, %{post: post}}
+    end
+  end
 
   @impl OgEx.Card
   def metadata(%{post: post}) do
@@ -180,6 +286,53 @@ defmodule MyAppWeb.PostOgCard do
 end
 ```
 
+`load/2` runs only for the image request. The normal HTML request continues to
+use the data loaded by `PostController.show/2`. Both paths must provide the
+assigns used by `metadata/1`, `version/1`, and `render/1`.
+
+The loader may return:
+
+| Result | Image response |
+| --- | --- |
+| `{:ok, assigns}` | Render and cache the card |
+| `{:error, :not_found}` | `404`, non-cacheable |
+| `{:error, :forbidden}` | `404`, non-cacheable |
+| `{:error, reason}` | `503`, non-cacheable |
+| Exception, exit, throw, or invalid result | `503`, non-cacheable |
+
+Social crawlers do not normally send the original browser session. Load only
+data intended to be public, and return `{:error, :not_found}` for private
+records when revealing their existence would be inappropriate.
+
+### Override loading in the controller
+
+Reusable presentation cards can omit `load/2`:
+
+```elixir
+og_card :show, MyAppWeb.SharedPostCard,
+  load: &load_post_card/2
+
+defp load_post_card(_conn, %{"id" => id}) do
+  post = MyApp.Blog.get_public_post!(id)
+  {:ok, %{post: post}}
+end
+```
+
+An explicit declaration loader takes precedence over `Card.load/2`.
+
+When one card serves several declarations, inspect the trusted originating
+route through:
+
+```elixir
+OgEx.controller(conn)
+OgEx.action(conn)
+OgEx.route_params(conn)
+OgEx.image_role(conn)
+```
+
+Do not depend on `conn.private.phoenix_action` for this purpose. A path-mode
+request is initially handled by OgEx rather than the page controller.
+
 The controller and card above produce this 1200 × 630 PNG:
 
 ![A wide OgEx card generated from HEEx](artifacts/examples/generated-wide.png)
@@ -190,6 +343,44 @@ function components, and normal HEEx escaping.
 The dimensions in `use OgEx.Card` are the renderer viewport. The wrapper added
 by OgEx fills that viewport, so the card's outer element should normally use
 `width: 100%` and `height: 100%`.
+
+## Legacy 0.2.0 render declarations
+
+OgEx `0.2.0` selects cards inside `render/3`:
+
+```elixir
+def show(conn, %{"id" => id}) do
+  post = MyApp.Blog.get_post!(id)
+
+  render(conn, :show,
+    post: post,
+    og: MyAppWeb.PostOgCard
+  )
+end
+```
+
+That API remains compatible during the `0.3.0` migration. Its signed query
+request runs the controller action until the action reaches `render/3`, so page
+loading and image loading cannot differ. New declarations solve that problem by
+dispatching `Card.load/2` before the action:
+
+```elixir
+og_card :show, MyAppWeb.PostOgCard
+```
+
+Direct existing-image metadata continues to use `render(..., og: metadata)`:
+
+```elixir
+render(conn, :about,
+  og: [
+    title: "About Acme",
+    image: "/images/about-og.png"
+  ]
+)
+```
+
+The declaration DSL currently applies to generated cards. A future static-image
+declaration is tracked separately in `todo/todo.md`.
 
 ### Metadata fields
 
@@ -673,19 +864,20 @@ GET /posts/42
   → OgEx inserts meta tags before </head>
 ```
 
-The generated metadata points to the same path with the reserved `__og_ex`
-query parameter:
+In the default path mode, generated metadata points to:
 
 ```text
-GET /posts/42?__og_ex=4K7fQxRfj2p0DqX_WLAzTA
+GET /posts/42/opengraph-image/4K7fQxRfj2p0DqX_WLAzTA
+GET /posts/42/twitter-image/ANOTHER_SIGNED_TOKEN
 ```
 
 For that image request:
 
 ```text
-GET /posts/42?__og_ex=...
-  → the same controller action runs
-  → OgEx reaches the controller's render/3 call
+GET /posts/42/opengraph-image/...
+  → the router or endpoint integration resolves PostController.show
+  → the normal controller action is skipped
+  → PostOgCard.load/2 loads image-specific assigns
   → the signature is verified against the route, card, role, and version
   → card HEEx is evaluated
   → referenced images are loaded and fingerprinted
@@ -694,13 +886,21 @@ GET /posts/42?__og_ex=...
   → the encoded image is returned
 ```
 
-The Phoenix page template is not rendered on the image branch. Work performed
-by the action before `render/3` still runs. Keep expensive image-specific work
-inside the card callbacks or a resource loader rather than performing it
-unconditionally in the controller.
+In query mode, the URL uses:
 
-The URL retains unrelated query parameters, such as a locale, while replacing
-any older `__og_ex` value.
+```text
+GET /posts/42?__og_ex=4K7fQxRfj2p0DqX_WLAzTA
+```
+
+The controller integration halts from its early plug before `show/2`. With
+endpoint integration, OgEx can halt even before Phoenix routing.
+
+Both strategies retain unrelated query parameters, such as a locale, while
+replacing any older `__og_ex` value. Only the loader and card rendering
+lifecycle runs for a declaration-based image request.
+
+Legacy `render(..., og: Card)` requests retain the `0.2.0` behavior: the action
+runs until it reaches `render/3`, but the Phoenix page template is skipped.
 
 ## Head injection
 
@@ -1064,16 +1264,23 @@ For automated controller tests, request the page, parse the metadata URL, and
 make a second request with `Phoenix.ConnTest`. The package's integration tests
 under `test/og_ex/` demonstrate the complete lifecycle.
 
-The companion `og_ex_demo` repository contains:
+The companion
+[`og_ex_demo`](https://github.com/obasekiosa/og_ex_demo) repository contains
+independent Phoenix projects you can run without an umbrella:
 
-- the released `0.1.0` examples;
-- an `f_image_sources` application covering a local embedded image, an
-  allowlisted external embedded image, and a direct existing image.
+- [`apps/v0_1_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_1_0)
+  uses the published `0.1.0` API and includes wide, square, PNG, and SVG cards.
+- [`apps/f_image_sources`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/f_image_sources)
+  uses published `0.2.0` image sources: embedded local and external images,
+  plus a direct static image.
+- [`apps/v0_3_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_3_0)
+  exercises the controller DSL, card-local loading, and both path and query
+  image URLs from the development branch.
 
 ## Current limitations
 
-- Controller actions run again for signed image requests, including work done
-  before `render/3`.
+- Legacy `render(..., og: ...)` declarations run the controller action before
+  recognizing an image request. Controller DSL declarations do not.
 - Direct local files are verified during the HTML request.
 - `<img src>` is the only discovered generated-card image reference.
 - Streaming and compressed HTML responses are not rewritten.

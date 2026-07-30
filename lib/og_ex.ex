@@ -2,19 +2,20 @@ defmodule OgEx do
   @moduledoc """
   Open Graph and Twitter/X image support for Phoenix controllers.
 
-  Add `OgEx.Controller` to a controller, then pass either an `OgEx.Card`
-  module or direct image metadata to its normal `render/3` call:
+  Add `OgEx.Controller` to a controller and declare a card for an action:
 
-      render(conn, :show, post: post, og: MyAppWeb.PostOgCard)
+      og_card :show, MyAppWeb.PostOgCard
 
-      render(conn, :about,
-        og: [title: "About Acme", image: "/images/about-og.png"]
-      )
+  Card-local `load/2` retrieves image-specific assigns without running the
+  normal controller action. Applications can choose signed path or query image
+  URLs.
 
-  Generated cards use a signed version of the page URL. The signed request runs
-  the same controller action and returns the image when it reaches `render/3`.
-  Direct public and external images use their existing URLs; direct private
-  images use a signed controller URL.
+  Path mode supports either `OgEx.Router.og_ex_routes/1` or
+  `plug OgEx, router: MyAppWeb.Router`. Choose one, not both. Query mode can be
+  intercepted by the controller integration without either path integration.
+
+  Legacy generated-card and direct-image `render(..., og: declaration)` calls
+  remain supported.
 
   See the project README for complete setup, source types, remote-image policy,
   caching, and current failure behavior.
@@ -75,10 +76,10 @@ defmodule OgEx do
   end
 
   @doc """
-  Initializes the compatibility plug.
+  Initializes endpoint image dispatch.
 
-  New applications do not need this plug because controller rendering fetches
-  the reserved query parameter lazily.
+  Pass `router: MyAppWeb.Router` to use endpoint integration. OgEx warns when
+  that router also contains `og_ex_routes()`.
   """
   @impl Plug
   def init(options) do
@@ -92,10 +93,11 @@ defmodule OgEx do
   end
 
   @doc """
-  Fetches query parameters for an endpoint that still installs `plug OgEx`.
+  Dispatches endpoint image requests or preserves legacy query fetching.
 
-  The controller integration performs the same operation lazily, so this
-  compatibility callback is not required in new endpoint configurations.
+  With a configured router, candidate path and query image requests are
+  resolved before Phoenix routing. Without one, this retains the `0.2.x`
+  compatibility behavior.
   """
   @impl Plug
   def call(conn, options) do
