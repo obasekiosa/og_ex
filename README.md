@@ -182,6 +182,25 @@ Phoenix routing.
 Precedence is the declaration's `image_route:`, then
 `config :og_ex, :image_route`, then the built-in `:path` default.
 
+### Image URL names
+
+OgEx 0.3.0 reserves these URL names:
+
+| Strategy | Reserved name |
+| --- | --- |
+| Query | `__og_ex` |
+| Open Graph path | `opengraph-image` |
+| Twitter/X path | `twitter-image` |
+
+They are intentionally fixed in 0.3.0 and cannot be renamed through
+configuration. Application code should treat them as OgEx-owned names and
+should not use `__og_ex` for unrelated query data.
+
+Changing the names requires coordinated changes to URL generation, endpoint
+and router recognition, signature verification, and crawler-facing metadata;
+changing only a router path will break image requests. Configurable names are
+tracked as a future routing enhancement.
+
 Declare an action only once. A controller cannot register both a path card and
 a query card for the same action; OgEx raises a compile error instead of
 silently choosing one. One declaration may still override the application
@@ -374,8 +393,7 @@ render(conn, :about,
 )
 ```
 
-The declaration DSL currently applies to generated cards. A future static-image
-declaration is tracked separately in `todo/todo.md`.
+The declaration DSL currently applies to generated cards.
 
 ### Metadata fields
 

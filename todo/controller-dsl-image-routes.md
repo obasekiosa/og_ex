@@ -1259,6 +1259,10 @@ remaining questions through implementation spikes before freezing the API:
 11. When separate Open Graph and Twitter card modules are declared without an
     explicit loader, should each card load independently or may the declaration
     designate one card as the shared data owner?
+12. Should applications be able to rename the `__og_ex` query parameter and
+    the `opengraph-image`/`twitter-image` path segments? Any configuration must
+    feed URL generation, both dispatch integrations, signature verification,
+    conflict checks, and documentation from one validated source of truth.
 
 ## Completion criteria
 
