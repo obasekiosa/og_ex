@@ -1,0 +1,33 @@
+name: Sync release notes
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "release-notes/*.md"
+      - ".github/workflows/sync-release-notes.yml"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-22.04
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Update GitHub release descriptions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          for notes in release-notes/v*.md; do
+            tag="${notes##*/}"
+            tag="${tag%.md}"
+            gh release edit "$tag" --notes-file "$notes"
+          done
+

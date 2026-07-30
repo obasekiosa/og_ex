@@ -57,6 +57,7 @@ defmodule OgEx.MixProject do
           "native/og_ex_native/Cargo.lock",
           "native/og_ex_native/.cargo",
           "artifacts",
+          "CHANGELOG.md",
           "docs/function-reference.md",
           "docs/internal-architecture.md",
           "docs/native-releases.md",
@@ -76,12 +77,13 @@ defmodule OgEx.MixProject do
       assets: %{"artifacts/examples" => "artifacts/examples"},
       extras: [
         "README.md",
+        "CHANGELOG.md",
         "docs/function-reference.md",
         "docs/internal-architecture.md",
         "docs/native-releases.md"
       ],
       groups_for_extras: [
-        Guides: ["README.md", "docs/function-reference.md"],
+        Guides: ["README.md", "CHANGELOG.md", "docs/function-reference.md"],
         Maintainers: ["docs/internal-architecture.md", "docs/native-releases.md"]
       ],
       groups_for_modules: [

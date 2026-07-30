@@ -1306,7 +1306,7 @@ under `test/og_ex/` demonstrate the complete lifecycle.
 
 The companion
 [`og_ex_demo`](https://github.com/obasekiosa/og_ex_demo) repository contains
-independent Phoenix projects you can run without an umbrella:
+independent Phoenix example projects:
 
 - [`apps/v0_1_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_1_0)
   uses the published `0.1.0` API and includes wide, square, PNG, and SVG cards.
