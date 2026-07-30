@@ -958,6 +958,9 @@ type from the file contents rather than trusting the extension.
 
 These files are actual responses from the companion controller examples.
 
+<details>
+<summary>Show generated card examples</summary>
+
 #### Wide PNG — 1200 × 630
 
 ```elixir
@@ -997,6 +1000,22 @@ use OgEx.Card, width: 600, height: 600, format: :svg
 ```
 
 ![Square 600 by 600 generated SVG](artifacts/examples/generated-square.svg)
+
+#### Endpoint integration with a path URL — 1200 × 630
+
+This response comes from the separate `f_endpoint` demo. The OgEx endpoint
+plug intercepts the signed path before the Phoenix router or page action runs.
+
+![Endpoint integration path card](artifacts/examples/endpoint-path.png)
+
+#### Endpoint integration with a query URL — 1200 × 630
+
+This second card uses a separate declaration and loader. The loader does not
+inspect the route strategy or match on the controller action.
+
+![Endpoint integration query card](artifacts/examples/endpoint-query.png)
+
+</details>
 
 ## Remote image configuration
 
