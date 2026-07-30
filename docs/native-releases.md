@@ -8,7 +8,7 @@ artifact instead of compiling Takumi and the OgEx NIF locally.
 Released versions require only the Hex dependency:
 
 ```elixir
-{:og_ex, "~> 0.2"}
+{:og_ex, "~> 0.3"}
 ```
 
 During `mix compile`, `RustlerPrecompiled` selects the current operating system,

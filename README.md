@@ -20,14 +20,9 @@ request runs the card loader without running the normal page action.
 
 ## Release status
 
-OgEx `0.2.0` is the current release. It includes image resources inside
-generated cards and direct-image metadata.
-
-The `master` branch currently targets `0.3.0`. The controller declarations,
-card-local loaders, path/query selection, and router/endpoint integrations
-documented below are development APIs until `0.3.0` is released. Applications
-using Hex package `0.2.0` should continue using the
-[legacy render declaration](#legacy-020-render-declarations).
+OgEx `0.3.0` is the current release. It adds controller declarations,
+card-local loaders, path/query selection, and router/endpoint integrations.
+The `0.2.0` render declaration remains available as a migration path.
 
 OgEx is still a `0.x` package. Review release notes before upgrading because
 minor releases may change public APIs.
@@ -47,7 +42,7 @@ Add OgEx to `mix.exs`:
 ```elixir
 def deps do
   [
-    {:og_ex, "~> 0.2"}
+    {:og_ex, "~> 0.3"}
   ]
 end
 ```
