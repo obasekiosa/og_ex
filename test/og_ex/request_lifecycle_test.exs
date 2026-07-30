@@ -218,6 +218,29 @@ defmodule OgEx.RequestLifecycleTest do
     assert <<137, "PNG\r\n", 26, "\n", _rest::binary>> = response.resp_body
   end
 
+  test "query integration halts inside the controller plug before action dispatch" do
+    page_conn =
+      :get
+      |> conn("/query-posts/42")
+      |> endpoint_conn()
+
+    page_config =
+      OgEx.ConfigBuilder.build(page_conn, OgEx.TestCard, %{title: "Loaded 42"})
+
+    image_uri = URI.parse(page_config.image_url)
+
+    response =
+      :get
+      |> conn(image_uri.path <> "?" <> image_uri.query)
+      |> endpoint_conn()
+      |> OgEx.TestRouter.call(OgEx.TestRouter.init([]))
+
+    assert response.halted
+    assert response.status == 200
+    assert OgEx.controller(response) == OgEx.TestController
+    assert OgEx.action(response) == :show
+  end
+
   test "router path integration dispatches an image without calling the page action" do
     page_config =
       page_conn()
@@ -237,6 +260,21 @@ defmodule OgEx.RequestLifecycleTest do
     assert OgEx.action(response) == :show
     assert OgEx.route_params(response) == %{"id" => "42"}
     assert <<137, "PNG\r\n", 26, "\n", _rest::binary>> = response.resp_body
+  end
+
+  test "a declared action automatically injects path-mode metadata into HTML" do
+    response =
+      :get
+      |> conn("/posts/42")
+      |> endpoint_conn()
+      |> OgEx.TestRouter.call(OgEx.TestRouter.init([]))
+
+    assert response.status == 200
+    assert response.resp_body =~ "Normal page"
+    assert response.resp_body =~ ~s(property="og:title" content="Loaded 42")
+    assert response.resp_body =~ "/posts/42/opengraph-image/"
+    assert response.resp_body =~ "/posts/42/twitter-image/"
+    refute response.resp_body =~ "__og_ex="
   end
 
   test "endpoint path integration dispatches the same image before the router" do
