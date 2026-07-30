@@ -469,7 +469,7 @@ directory. It rejects traversal and symlinks before reading the file.
 
 #### Example: embed a local image
 
-The `f_image_sources` demo keeps `logo.svg` at
+The `v0_2_0` demo keeps `logo.svg` at
 `priv/static/images/logo.svg`. Its controller selects a normal generated card:
 
 ```elixir
@@ -1310,7 +1310,7 @@ independent Phoenix example projects:
 
 - [`apps/v0_1_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_1_0)
   uses the published `0.1.0` API and includes wide, square, PNG, and SVG cards.
-- [`apps/f_image_sources`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/f_image_sources)
+- [`apps/v0_2_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_2_0)
   uses published `0.2.0` image sources: embedded local and external images,
   plus a direct static image.
 - [`apps/v0_3_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_3_0)

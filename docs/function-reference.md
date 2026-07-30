@@ -84,7 +84,7 @@ example as an independent Mix project:
 
 - [`v0_1_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_1_0)
   demonstrates the published `0.1.0` generated-card API.
-- [`f_image_sources`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/f_image_sources)
+- [`v0_2_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_2_0)
   demonstrates published `0.2.0` local, external, and direct image sources.
 - [`v0_3_0`](https://github.com/obasekiosa/og_ex_demo/tree/master/apps/v0_3_0)
   demonstrates the controller DSL and both image URL strategies.
