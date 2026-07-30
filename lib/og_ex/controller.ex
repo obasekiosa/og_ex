@@ -202,13 +202,20 @@ defmodule OgEx.Controller do
   def render(conn, template, options, controller)
       when (is_list(options) or is_map(options)) and is_atom(controller) do
     {explicit_declaration, page_assigns} = pop_card(options)
-    declaration = explicit_declaration || declared_card(controller, action(conn))
+    controller_declaration = declaration(controller, action(conn))
+    selected_declaration = explicit_declaration || card(controller_declaration)
 
-    if declaration do
+    if selected_declaration do
       # Build the same deterministic config during the human page request and
       # the crawler's later image request. This is why the existing controller
       # action can serve both representations without a second route.
-      config = OgEx.ConfigBuilder.build(conn, declaration, Map.new(page_assigns))
+      config =
+        OgEx.ConfigBuilder.build(
+          conn,
+          selected_declaration,
+          Map.new(page_assigns),
+          config_builder_options(explicit_declaration, controller_declaration)
+        )
 
       if OgEx.Request.image_request?(conn) do
         # The reserved compact signature selects the image response. Query
@@ -234,8 +241,10 @@ defmodule OgEx.Controller do
   """
   def before_action(conn, controller) do
     action = action(conn)
+    declaration = declaration(controller, action)
 
-    if OgEx.Request.image_request?(conn) and declaration(controller, action) do
+    if (OgEx.Request.image_request?(conn) and declaration) &&
+         route_strategy(declaration) == :query do
       dispatch_image(conn, controller, action)
     else
       conn
@@ -246,7 +255,13 @@ defmodule OgEx.Controller do
   def dispatch_image(conn, controller, action) do
     declaration = declaration(controller, action)
     params = OgEx.Request.application_params(conn)
-    conn = OgEx.Request.put_origin(conn, controller, action, :image, params)
+
+    conn =
+      if OgEx.Request.origin(conn) do
+        conn
+      else
+        OgEx.Request.put_origin(conn, controller, action, :image, params)
+      end
 
     result =
       try do
@@ -257,7 +272,10 @@ defmodule OgEx.Controller do
 
     case result do
       {:ok, assigns} when is_map(assigns) ->
-        config = OgEx.ConfigBuilder.build(conn, declaration.card, assigns)
+        config =
+          OgEx.ConfigBuilder.build(conn, declaration.card, assigns,
+            image_route: route_strategy(declaration)
+          )
 
         conn
         |> OgEx.ImageResponse.send(config)
@@ -287,25 +305,34 @@ defmodule OgEx.Controller do
     {Map.get(options, :og), Map.delete(options, :og)}
   end
 
-  defp declared_card(nil, _action), do: nil
-
-  defp declared_card(controller, action) do
-    case declaration(controller, action) do
-      %{card: card} -> card
-      _ -> nil
-    end
-  end
-
   defp declaration(nil, _action), do: nil
   defp declaration(_controller, nil), do: nil
 
   defp declaration(controller, action) do
-    if function_exported?(controller, :__og_ex_declaration__, 1) do
+    if Code.ensure_loaded?(controller) and
+         function_exported?(controller, :__og_ex_declaration__, 1) do
       controller.__og_ex_declaration__(action)
     end
   end
 
   defp action(conn), do: conn.private[:phoenix_action]
+
+  defp card(%{card: card}), do: card
+  defp card(_declaration), do: nil
+
+  defp config_builder_options(explicit_declaration, _controller_declaration)
+       when not is_nil(explicit_declaration),
+       do: []
+
+  defp config_builder_options(nil, declaration),
+    do: [image_route: route_strategy(declaration)]
+
+  @doc false
+  def route_strategy(%{image_route: :default}) do
+    Application.get_env(:og_ex, :image_route, :path)
+  end
+
+  def route_strategy(%{image_route: strategy}) when strategy in [:path, :query], do: strategy
 
   defp send_loader_error(conn, controller, action, reason) do
     status = if reason in [:not_found, :forbidden], do: :not_found, else: :service_unavailable

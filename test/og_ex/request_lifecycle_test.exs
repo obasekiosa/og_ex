@@ -218,6 +218,67 @@ defmodule OgEx.RequestLifecycleTest do
     assert <<137, "PNG\r\n", 26, "\n", _rest::binary>> = response.resp_body
   end
 
+  test "router path integration dispatches an image without calling the page action" do
+    page_config =
+      page_conn()
+      |> OgEx.ConfigBuilder.build(OgEx.TestCard, %{title: "Loaded 42"}, image_route: :path)
+
+    path = URI.parse(page_config.image_url).path
+
+    response =
+      :get
+      |> conn(path)
+      |> endpoint_conn()
+      |> OgEx.TestRouter.call(OgEx.TestRouter.init([]))
+
+    assert response.halted
+    assert response.status == 200
+    assert OgEx.controller(response) == OgEx.TestPathController
+    assert OgEx.action(response) == :show
+    assert OgEx.route_params(response) == %{"id" => "42"}
+    assert <<137, "PNG\r\n", 26, "\n", _rest::binary>> = response.resp_body
+  end
+
+  test "endpoint path integration dispatches the same image before the router" do
+    page_config =
+      page_conn()
+      |> OgEx.ConfigBuilder.build(OgEx.TestCard, %{title: "Loaded 42"}, image_route: :path)
+
+    path = URI.parse(page_config.image_url).path
+
+    response =
+      :get
+      |> conn(path)
+      |> endpoint_conn()
+      |> OgEx.call(router: OgEx.TestRouter)
+
+    assert response.halted
+    assert response.status == 200
+    assert OgEx.controller(response) == OgEx.TestPathController
+    assert OgEx.action(response) == :show
+  end
+
+  test "endpoint integration passes ordinary requests to Phoenix" do
+    conn =
+      :get
+      |> conn("/posts/42")
+      |> endpoint_conn()
+      |> OgEx.call(router: OgEx.TestRouter)
+
+    refute conn.halted
+    assert conn.status == nil
+  end
+
+  test "endpoint initialization warns when router integration is also installed" do
+    warning =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert [router: OgEx.TestRouter] = OgEx.init(router: OgEx.TestRouter)
+      end)
+
+    assert warning =~ "endpoint and router integrations are both enabled"
+    assert warning =~ "Choose exactly one integration"
+  end
+
   defp page_conn do
     :get
     |> conn("/posts/42?locale=en")

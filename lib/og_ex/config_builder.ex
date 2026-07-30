@@ -12,10 +12,14 @@ defmodule OgEx.ConfigBuilder do
   or map selects the direct-image strategy and must contain `:title` and
   `:image`.
   """
-  def build(conn, card, assigns) when is_atom(card) and is_map(assigns) do
+  def build(conn, card, assigns, options \\ [])
+
+  def build(conn, card, assigns, options)
+      when is_atom(card) and is_map(assigns) and is_list(options) do
     metadata = card.metadata(assigns)
     version = generated_version(card, assigns)
     identity = {:generated, card, version}
+    image_route = Keyword.get(options, :image_route, :query)
 
     %OgEx.Config{
       strategy: {:generated, card},
@@ -26,11 +30,18 @@ defmodule OgEx.ConfigBuilder do
       height: card.__og_ex__(:height),
       format: card.__og_ex__(:format),
       version: version,
-      image_url: image_url(conn, signature(conn, identity, :image))
+      image_url: image_url(conn, signature(conn, identity, :image), :image, image_route),
+      twitter_image_url:
+        image_url(
+          conn,
+          signature(conn, identity, :twitter_image),
+          :twitter_image,
+          image_route
+        )
     }
   end
 
-  def build(conn, metadata, assigns)
+  def build(conn, metadata, assigns, _options)
       when (is_list(metadata) or is_map(metadata)) and is_map(assigns) do
     metadata = Map.new(metadata)
     title = Map.fetch!(metadata, :title)
@@ -60,8 +71,8 @@ defmodule OgEx.ConfigBuilder do
   def verify(conn, %OgEx.Config{} = config) do
     supplied = OgEx.Request.signature(conn)
 
-    [:image, :twitter_image]
-    |> Enum.uniq_by(&resource_for(config, &1))
+    config
+    |> verification_roles()
     |> Enum.find_value({:error, :invalid_image_signature}, fn role ->
       expected = signature(conn, identity(config, role), role)
 
@@ -103,7 +114,12 @@ defmodule OgEx.ConfigBuilder do
   defp direct_url(_conn, %{type: :remote, reference: url}, _version, _role), do: url
 
   defp direct_url(conn, %{source: %{type: :private}} = resource, version, role) do
-    image_url(conn, signature(conn, {:existing, version, resource.fingerprint}, role))
+    image_url(
+      conn,
+      signature(conn, {:existing, version, resource.fingerprint}, role),
+      role,
+      :query
+    )
   end
 
   # Returns an inspected resource dimension, or nil for an uninspected remote
@@ -153,9 +169,17 @@ defmodule OgEx.ConfigBuilder do
   defp resource_for(config, :image), do: config.image
   defp resource_for(config, :twitter_image), do: config.twitter_image
 
+  defp verification_roles(%{strategy: {:generated, _card}}), do: [:image, :twitter_image]
+
+  defp verification_roles(%{strategy: :existing} = config) do
+    [:image, :twitter_image]
+    |> Enum.uniq_by(&resource_for(config, &1))
+  end
+
   # Authenticates a route, response role, and deterministic image identity.
   defp signature(conn, identity, role) do
-    message = :erlang.term_to_binary({identity, role, conn.request_path}, [:deterministic])
+    message =
+      :erlang.term_to_binary({identity, role, OgEx.Request.page_path(conn)}, [:deterministic])
 
     :crypto.mac(:hmac, :sha256, signing_key(conn), message)
     |> binary_part(0, @signature_bytes)
@@ -174,7 +198,7 @@ defmodule OgEx.ConfigBuilder do
   end
 
   # Builds an absolute same-route URL while retaining application query params.
-  defp image_url(conn, signature) do
+  defp image_url(conn, signature, _role, :query) do
     query_params =
       conn
       |> Plug.Conn.fetch_query_params()
@@ -183,5 +207,28 @@ defmodule OgEx.ConfigBuilder do
       |> Map.put(@reserved_parameter, signature)
 
     Phoenix.Controller.current_url(conn, query_params)
+  end
+
+  defp image_url(conn, signature, role, :path) do
+    suffix = if role == :twitter_image, do: "twitter-image", else: "opengraph-image"
+    page_path = String.trim_trailing(conn.request_path, "/")
+    image_path = "#{page_path}/#{suffix}/#{signature}"
+
+    conn
+    |> Phoenix.Controller.current_url()
+    |> URI.parse()
+    |> Map.put(:path, image_path)
+    |> Map.put(:query, application_query(conn))
+    |> URI.to_string()
+  end
+
+  defp application_query(conn) do
+    query =
+      conn
+      |> Plug.Conn.fetch_query_params()
+      |> Map.fetch!(:query_params)
+      |> Map.delete(@reserved_parameter)
+
+    if map_size(query) == 0, do: nil, else: URI.encode_query(query)
   end
 end

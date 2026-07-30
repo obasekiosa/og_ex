@@ -81,7 +81,15 @@ defmodule OgEx do
   the reserved query parameter lazily.
   """
   @impl Plug
-  def init(options), do: options
+  def init(options) do
+    options = Keyword.new(options)
+
+    if router = options[:router] do
+      OgEx.Integration.warn_if_duplicate(router)
+    end
+
+    options
+  end
 
   @doc """
   Fetches query parameters for an endpoint that still installs `plug OgEx`.
@@ -90,7 +98,10 @@ defmodule OgEx do
   compatibility callback is not required in new endpoint configurations.
   """
   @impl Plug
-  def call(conn, _options) do
-    Plug.Conn.fetch_query_params(conn)
+  def call(conn, options) do
+    case options[:router] do
+      nil -> Plug.Conn.fetch_query_params(conn)
+      router -> OgEx.Dispatcher.endpoint(conn, router)
+    end
   end
 end

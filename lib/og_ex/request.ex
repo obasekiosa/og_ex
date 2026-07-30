@@ -15,10 +15,16 @@ defmodule OgEx.Request do
   Lazily fetches and returns the image signature, or `nil` when absent.
   """
   def signature(conn) do
-    conn
-    |> Plug.Conn.fetch_query_params()
-    |> Map.fetch!(:query_params)
-    |> Map.get(@parameter)
+    case origin(conn) do
+      %{signature: signature} when is_binary(signature) ->
+        signature
+
+      _ ->
+        conn
+        |> Plug.Conn.fetch_query_params()
+        |> Map.fetch!(:query_params)
+        |> Map.get(@parameter)
+    end
   end
 
   @doc """
@@ -27,14 +33,16 @@ defmodule OgEx.Request do
   The values must come from a verified OgEx declaration, never directly from
   request-controlled module or atom names.
   """
-  def put_origin(conn, controller, action, role, params)
+  def put_origin(conn, controller, action, role, params, options \\ [])
       when is_atom(controller) and is_atom(action) and role in [:image, :twitter_image] and
              is_map(params) do
     Plug.Conn.put_private(conn, @origin_private, %{
       controller: controller,
       action: action,
       role: role,
-      params: params
+      params: params,
+      page_path: Keyword.get(options, :page_path, conn.request_path),
+      signature: Keyword.get(options, :signature)
     })
   end
 
@@ -62,5 +70,15 @@ defmodule OgEx.Request do
     conn.query_params
     |> Map.delete(@parameter)
     |> Map.merge(conn.path_params || %{})
+  end
+
+  @doc """
+  Returns the canonical page path bound to the current image request.
+  """
+  def page_path(conn) do
+    case origin(conn) do
+      %{page_path: page_path} -> page_path
+      _ -> conn.request_path
+    end
   end
 end
