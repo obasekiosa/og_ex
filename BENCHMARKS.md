@@ -48,10 +48,10 @@ Takumi render.
 
 | Term | Meaning |
 | --- | --- |
-| **ips** | Iterations per second — Benchee's throughput measure; higher is faster. |
+| **ips** | Iterations per second (Benchee's throughput measure); higher is faster. |
 | **average / median / 99th %** | Latency distribution statistics across all measured iterations. Median is the most noise-resistant single number; 99th % shows tail latency. |
 | **deviation** | Relative standard deviation. High values on this laptop reflect CPU frequency scaling and thermal variation between runs. |
-| **reduction count** | BEAM work units. Each function call costs roughly one reduction; a process is preempted after ~4000 reductions. Reductions approximate "how much code ran" independent of CPU speed — useful for comparing algorithmic work, but NIF/dirty-CPU time inside Rust does not consume reductions, so render-heavy scenarios show fewer reductions than their wall time suggests. |
+| **reduction count** | BEAM work units. Each function call costs roughly one reduction; a process is preempted after ~4000 reductions. Reductions approximate "how much code ran" independent of CPU speed, which is useful for comparing algorithmic work, but NIF/dirty-CPU time inside Rust does not consume reductions, so render-heavy scenarios show fewer reductions than their wall time suggests. |
 | **memory usage** | Heap words allocated by the calling process per iteration (BEAM allocations only; NIF-internal allocations are invisible to this counter). |
 | **cold** | First render for content not in the generated-image cache: full loader → HEEx → resource scan → Takumi layout/rasterize/encode path. |
 | **warm** | Cache hit: signature verify + ETS lookup + response assembly, no rendering. |
@@ -116,8 +116,8 @@ Observations:
   lifecycle cold (~58 ms median) ≈ renderer steady-state PNG time. Everything
   OgEx adds around a miss (routing, loading, signing, verification, HEEx,
   resource scan) costs under 2 ms combined.
-- Warm cache hits serve in well under 1 ms — roughly 80–90x faster than a
-  miss — because the hit path is verify + ETS lookup + header/body assembly.
+- Warm cache hits serve in well under 1 ms (roughly 80–90x faster than a
+  miss) because the hit path is verify + ETS lookup + header/body assembly.
 - Signing (two HMAC-SHA256 truncations per page render) costs tens of
   microseconds; it is not a bottleneck even on high-traffic HTML pages.
 - The endpoint plug candidate check adds ~10 µs to ordinary non-OgEx requests.
@@ -138,7 +138,7 @@ owner. Reads bypass the GenServer mailbox entirely.
 
 The raw ETS fetch is effectively free; the warm-request cost above is almost
 entirely Plug conn construction, route resolution, config building, HMAC
-verification, and copying the ~41 KB image body into the response — not cache
+verification, and copying the ~41 KB image body into the response, not cache
 access.
 
 ### Memory footprint per cached card
@@ -163,7 +163,7 @@ number of *distinct* card versions ever rendered.
   unbounded stream of unique card versions will grow RSS without limit.
 - **Resource cache (`OgEx.ResourceCache`, remote images only): bounded but
   blunt.** Defaults are 128 entries / 25 MB. When an insertion would exceed
-  either bound the *entire table is cleared* before inserting — demonstrated
+  either bound the *entire table is cleared* before inserting (demonstrated
   with `max_entries: 4`: after inserting 10 distinct resources only 2
   survived (the ones inserted after the last reset). This is not LRU; expect
   thundering re-fetches after each reset.
@@ -203,8 +203,8 @@ normal page:
 | Public static file (read + inspect) | 3.91 K | 194.52 µs | 34.88 KB |
 
 Local files pay one filesystem read plus security checks (traversal/symlink
-walk) per image per page render — hundreds of microseconds, worth remembering
-for pages that declare several direct images.
+walk) per image per page render (hundreds of microseconds, worth remembering
+for pages that declare several direct images).
 
 ## 6. Head-injection decomposition
 

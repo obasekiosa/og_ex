@@ -79,12 +79,14 @@ defmodule OgEx.MixProject do
       extras: [
         "README.md",
         "CHANGELOG.md",
+        "BENCHMARKS.md",
         "docs/function-reference.md",
         "docs/internal-architecture.md",
         "docs/native-releases.md"
       ],
       groups_for_extras: [
         Guides: ["README.md", "CHANGELOG.md", "docs/function-reference.md"],
+        Benchmarks: ["BENCHMARKS.md"],
         Maintainers: ["docs/internal-architecture.md", "docs/native-releases.md"]
       ],
       groups_for_modules: [
@@ -101,7 +103,10 @@ defmodule OgEx.MixProject do
         ],
         "Runtime internals": [OgEx.Config, OgEx.Resources, OgEx.ResourceCache]
       ],
-      skip_undefined_reference_warnings_on: ["docs/internal-architecture.md"]
+      skip_undefined_reference_warnings_on: [
+        "docs/internal-architecture.md",
+        "BENCHMARKS.md"
+      ]
     ]
   end
 end

@@ -1345,6 +1345,9 @@ mix hex.build
 The native integration tests render real images and verify their formats and
 dimensions.
 
+Benchmarks: [BENCHMARKS.md](BENCHMARKS.md) records the 0.3.0 baseline and how
+to reproduce it with the scripts under `bench/`.
+
 See [Public API reference](docs/function-reference.md) for callbacks,
 configuration boundaries, and extension points.
 
