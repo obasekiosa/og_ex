@@ -1,3 +1,11 @@
+defmodule OgEx.Flags do
+  @moduledoc false
+
+  # Named ETS table backing once-per-node gates (currently the deprecated
+  # legacy-signature warning in OgEx.ConfigBuilder). Created by
+  # OgEx.Application at boot; see `ensure_flags_table/0`.
+end
+
 defmodule OgEx.Application do
   @moduledoc false
 
@@ -16,6 +24,8 @@ defmodule OgEx.Application do
     # Renderers are deliberately not processes. The Takumi renderer executes on
     # Rustler's dirty CPU scheduler and can therefore be called concurrently.
     warn_for_global_remote_access()
+    warn_for_trailing_slash_canonicalization()
+    ensure_flags_table()
 
     children = [
       OgEx.Cache.ETS,
@@ -37,5 +47,28 @@ defmodule OgEx.Application do
       attack surface. Prefer an explicit allowed_hosts list in production.
       """)
     end
+  end
+
+  # Announces the page-path canonicalization once per boot. Legacy signed URLs
+  # remain verifiable this release; see OgEx.ConfigBuilder.verify/2.
+  defp warn_for_trailing_slash_canonicalization do
+    require Logger
+
+    Logger.warning(
+      "OgEx now signs image URLs with trimmed page paths (\"/path/\" -> \"/path\"). " <>
+        "Trailing-slash URLs from older versions still work this release but are deprecated " <>
+        "and will be removed in a future version."
+    )
+  end
+
+  # The flags table backs once-per-node behaviors such as the legacy signature
+  # warning. It is owned by the application master process and is recreated if
+  # the application restarts, re-arming those gates.
+  defp ensure_flags_table do
+    if :ets.whereis(OgEx.Flags) == :undefined do
+      :ets.new(OgEx.Flags, [:named_table, :public, :set])
+    end
+
+    :ok
   end
 end

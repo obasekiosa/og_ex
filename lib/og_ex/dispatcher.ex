@@ -3,7 +3,7 @@ defmodule OgEx.Dispatcher do
 
   import Plug.Conn
 
-  @path_pattern ~r{\A(?<page_path>/.*?)/(?<role>opengraph-image|twitter-image)/(?<signature>[^/]+)\z}
+  @role_segments ["opengraph-image", "twitter-image"]
 
   @doc """
   Dispatches an endpoint request when it is an OgEx path or query image.
@@ -96,16 +96,36 @@ defmodule OgEx.Dispatcher do
     end
   end
 
+  # Recognizes signed image paths by splitting on segments. The role segment
+  # and signature are always the last two segments; everything before them is
+  # the canonical page path. A missing page segment is the root page "/".
+  # Trailing slashes on the image URL itself are ignored so crawlers that
+  # append one still reach the image.
+  #
+  #   "/opengraph-image/TOKEN"          -> page "/", role :image
+  #   "/posts/42/opengraph-image/TOKEN" -> page "/posts/42", role :image
   defp path_request(path) do
-    case Regex.named_captures(@path_pattern, path) do
-      %{"page_path" => page_path, "role" => role, "signature" => signature} ->
-        role = if role == "twitter-image", do: :twitter_image, else: :image
-        {:ok, page_path, role, signature}
+    case String.split(String.trim_trailing(path, "/"), "/") do
+      ["" | segments] when segments != [] ->
+        case Enum.split(segments, -2) do
+          {page_segments, [role_segment, signature]}
+          when role_segment in @role_segments and signature != "" ->
+            {:ok, build_page_path(page_segments), role(role_segment), signature}
+
+          _ ->
+            :error
+        end
 
       _ ->
         :error
     end
   end
+
+  defp build_page_path([]), do: "/"
+  defp build_page_path(segments), do: "/" <> Enum.join(segments, "/")
+
+  defp role("twitter-image"), do: :twitter_image
+  defp role(_segment), do: :image
 
   defp route_info(router, conn, page_path) do
     case Phoenix.Router.route_info(router, conn.method, page_path, conn.host) do

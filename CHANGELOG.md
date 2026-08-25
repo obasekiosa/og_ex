@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.1
+
+This release fixes path-mode image dispatch for root and trailing-slash pages
+and makes page-path signing canonical.
+
+- Path-mode images now work on the root page: `/` signs
+  `/opengraph-image/TOKEN` URLs that dispatch correctly through both router
+  and endpoint integrations.
+- Page paths are canonicalized before signing: trailing slashes are trimmed,
+  so a page served at `/posts/42/` signs `/posts/42`. Signed image requests
+  verify against the same canonical form.
+- Signed image URLs minted by previous releases for trailing-slash pages are
+  still verified this release. That compatibility path emits
+  `[:og_ex, :signature, :legacy]` telemetry, logs a deprecation warning once
+  per node, and will be removed in a future version. OgEx also logs a
+  deprecation notice once at startup.
+- Image signatures bound to one page are rejected when replayed against
+  another page's image URL (unchanged behavior, now regression-tested).
+
 ## 0.3.0
 
 Released July 30, 2026.

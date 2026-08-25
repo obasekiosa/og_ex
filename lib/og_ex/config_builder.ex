@@ -4,6 +4,7 @@ defmodule OgEx.ConfigBuilder do
   @signature_salt "og-ex-image-v1"
   @signature_bytes 16
   @reserved_parameter "__og_ex"
+  @legacy_warning_key {OgEx.ConfigBuilder, :legacy_trailing_slash_warning}
 
   @doc """
   Builds configuration for a generated card module or direct image metadata.
@@ -30,11 +31,22 @@ defmodule OgEx.ConfigBuilder do
       height: card.__og_ex__(:height),
       format: card.__og_ex__(:format),
       version: version,
-      image_url: image_url(conn, signature(conn, identity, :image), :image, image_route),
+      image_url:
+        image_url(
+          conn,
+          signature(conn, identity, :image, OgEx.Request.page_path(conn)),
+          :image,
+          image_route
+        ),
       twitter_image_url:
         image_url(
           conn,
-          signature(conn, identity, :twitter_image),
+          signature(
+            conn,
+            identity,
+            :twitter_image,
+            OgEx.Request.page_path(conn)
+          ),
           :twitter_image,
           image_route
         )
@@ -67,18 +79,33 @@ defmodule OgEx.ConfigBuilder do
 
   @doc """
   Verifies an image request and returns the image role bound to its signature.
+
+  Signatures are checked against the canonical page path first. A second
+  attempt against the pre-canonicalization form keeps trailing-slash tokens
+  from older releases working; that compatibility path emits
+  `[:og_ex, :signature, :legacy]` telemetry and a once-per-node warning.
   """
   def verify(conn, %OgEx.Config{} = config) do
     supplied = OgEx.Request.signature(conn)
+    canonical = OgEx.Request.page_path(conn)
 
-    config
-    |> verification_roles()
-    |> Enum.find_value({:error, :invalid_image_signature}, fn role ->
-      expected = signature(conn, identity(config, role), role)
+    # Older releases signed trailing-slash page renders against the untrimmed
+    # request path. The root page's raw form already equals its canonical form.
+    candidates =
+      if canonical == "/", do: [canonical], else: [canonical, canonical <> "/"]
 
-      if is_binary(supplied) and byte_size(supplied) == byte_size(expected) and
-           Plug.Crypto.secure_compare(supplied, expected) do
-        {:ok, role}
+    Enum.find_value(candidates, {:error, :invalid_image_signature}, fn page_path ->
+      matched_role =
+        Enum.find(verification_roles(config), fn role ->
+          expected = signature(conn, identity(config, role), role, page_path)
+
+          is_binary(supplied) and byte_size(supplied) == byte_size(expected) and
+            Plug.Crypto.secure_compare(supplied, expected)
+        end)
+
+      if matched_role do
+        if page_path != canonical, do: warn_legacy_signature(page_path, canonical)
+        {:ok, matched_role}
       end
     end)
   end
@@ -116,7 +143,12 @@ defmodule OgEx.ConfigBuilder do
   defp direct_url(conn, %{source: %{type: :private}} = resource, version, role) do
     image_url(
       conn,
-      signature(conn, {:existing, version, resource.fingerprint}, role),
+      signature(
+        conn,
+        {:existing, version, resource.fingerprint},
+        role,
+        OgEx.Request.page_path(conn)
+      ),
       role,
       :query
     )
@@ -177,9 +209,8 @@ defmodule OgEx.ConfigBuilder do
   end
 
   # Authenticates a route, response role, and deterministic image identity.
-  defp signature(conn, identity, role) do
-    message =
-      :erlang.term_to_binary({identity, role, OgEx.Request.page_path(conn)}, [:deterministic])
+  defp signature(conn, identity, role, page_path) do
+    message = :erlang.term_to_binary({identity, role, page_path}, [:deterministic])
 
     :crypto.mac(:hmac, :sha256, signing_key(conn), message)
     |> binary_part(0, @signature_bytes)
@@ -211,8 +242,12 @@ defmodule OgEx.ConfigBuilder do
 
   defp image_url(conn, signature, role, :path) do
     suffix = if role == :twitter_image, do: "twitter-image", else: "opengraph-image"
-    page_path = String.trim_trailing(conn.request_path, "/")
-    image_path = "#{page_path}/#{suffix}/#{signature}"
+    page_path = OgEx.Request.canonical_page_path(conn.request_path)
+
+    # The root page has no path prefix to keep; the role segment directly
+    # follows the leading slash.
+    base = if page_path == "/", do: "", else: page_path
+    image_path = "#{base}/#{suffix}/#{signature}"
 
     conn
     |> Phoenix.Controller.current_url()
@@ -230,5 +265,37 @@ defmodule OgEx.ConfigBuilder do
       |> Map.delete(@reserved_parameter)
 
     if map_size(query) == 0, do: nil, else: URI.encode_query(query)
+  end
+
+  # Telemetry fires on every legacy verification; the log warning is gated so
+  # it happens once per node. `:persistent_term` provides a cheap fast-path
+  # read after the first occurrence, while the atomic `:ets.insert_new/2` on
+  # the application-owned flags table guarantees exactly one logger wins even
+  # when stale URLs are verified concurrently.
+  defp warn_legacy_signature(raw_path, canonical) do
+    :telemetry.execute(
+      [:og_ex, :signature, :legacy],
+      %{},
+      %{page_path: raw_path, canonical: canonical}
+    )
+
+    unless :persistent_term.get(@legacy_warning_key, false) do
+      claimed =
+        try do
+          :ets.insert_new(OgEx.Flags, {:legacy_signature_warning, true})
+        rescue
+          ArgumentError -> true
+        end
+
+      if claimed do
+        :persistent_term.put(@legacy_warning_key, true)
+        require Logger
+
+        Logger.warning(
+          "OgEx accepted a deprecated image signature bound to #{inspect(raw_path)} " <>
+            "(canonical #{inspect(canonical)}). This compatibility will be removed in a future version."
+        )
+      end
+    end
   end
 end

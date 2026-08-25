@@ -7,6 +7,20 @@ defmodule OgEx.Request do
   # Fetching query params is idempotent. Doing it only when the controller
   # reaches its OgEx-aware render keeps endpoint setup unnecessary.
   @doc """
+  Returns the canonical form of a page path.
+
+  Trailing slashes are trimmed so signatures bind to one stable form, and the
+  root page canonicalizes to `"/"`. URL generation, dispatch origins, and
+  signature verification all share this function.
+  """
+  def canonical_page_path(path) when is_binary(path) do
+    case String.trim_trailing(path, "/") do
+      "" -> "/"
+      canonical -> canonical
+    end
+  end
+
+  @doc """
   Returns `true` when the request contains an OgEx image signature.
   """
   def image_request?(conn), do: is_binary(signature(conn))
@@ -41,7 +55,7 @@ defmodule OgEx.Request do
       action: action,
       role: role,
       params: params,
-      page_path: Keyword.get(options, :page_path, conn.request_path),
+      page_path: Keyword.get(options, :page_path, canonical_page_path(conn.request_path)),
       signature: Keyword.get(options, :signature)
     })
   end
@@ -78,7 +92,7 @@ defmodule OgEx.Request do
   def page_path(conn) do
     case origin(conn) do
       %{page_path: page_path} -> page_path
-      _ -> conn.request_path
+      _ -> canonical_page_path(conn.request_path)
     end
   end
 end

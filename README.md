@@ -1222,6 +1222,7 @@ OgEx emits:
 | `[:og_ex, :cache, :miss]` | none | `:card` |
 | `[:og_ex, :render, :stop]` | `:duration`, `:size` | `:card`, `:renderer` |
 | `[:og_ex, :render, :exception]` | `:system_time` | `:card`, `:reason` |
+| `[:og_ex, :signature, :legacy]` | none | `:page_path`, `:canonical` |
 
 Durations use native telemetry time units. Convert them with
 `System.convert_time_unit/3` in a handler.
