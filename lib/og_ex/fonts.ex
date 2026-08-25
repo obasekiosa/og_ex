@@ -3,9 +3,11 @@ defmodule OgEx.Fonts do
 
   # Accepted configuration entry shapes. Binaries keep their historical dual
   # semantics: an existing file is read as font bytes, any other binary is
-  # passed through as already-loaded bytes. `OgEx.font/1` markers are the only
-  # shape that unambiguously means "path", which is what makes their missing
-  # file errors actionable.
+  # passed through as already-loaded bytes. The `{:ogex_font, path}` marker is
+  # the only shape that unambiguously means "path", which is what makes its
+  # missing-file errors actionable. It is also plain data with no module
+  # dependency, so it stays safe to evaluate from config.exs before OgEx is
+  # compiled.
   @type entry ::
           binary()
           | {:ogex_font, binary()}
@@ -15,9 +17,8 @@ defmodule OgEx.Fonts do
   @doc """
   Builds a lazy font entry for a file below the configured `:otp_app`.
 
-  The return value is a marker; nothing is read from the filesystem and no
-  application is consulted until fonts load during a render. That makes the
-  helper safe to use in `config.exs` as well as `runtime.exs`:
+  Returns the `{:ogex_font, path}` tuple; nothing is read from the filesystem
+  and no application is consulted until fonts load during a render:
 
       config :og_ex,
         otp_app: :my_app,
@@ -25,6 +26,11 @@ defmodule OgEx.Fonts do
 
   Relative paths resolve with `Application.app_dir/2` at load time. Absolute
   paths pass through unchanged.
+
+  Configuration evaluated before OgEx is compiled cannot call this function.
+  In `config.exs` use the equivalent literal tuple instead:
+
+      fonts: [{:ogex_font, "priv/fonts/Inter-Regular.ttf"}]
   """
   def font(path) when is_binary(path), do: {:ogex_font, path}
 
@@ -130,19 +136,6 @@ defmodule OgEx.Fonts do
     end
   end
 
-  defp read_marker_file(resolved, configured) do
-    if File.regular?(resolved) do
-      {:ok, File.read!(resolved)}
-    else
-      {:error,
-       invalid_config_message(
-         "OgEx.font(#{inspect(configured)}) resolved to #{resolved}, which does not exist. " <>
-           "Resolve font paths at runtime with Application.app_dir/2 or OgEx.font/1, and " <>
-           "make sure the file ships inside the release."
-       )}
-    end
-  end
-
   defp resolve({mod, fun, args} = mfa) when is_atom(mod) and is_atom(fun) and is_list(args) do
     resolve_lazy(fn -> apply(mod, fun, args) end, inspect(mfa, limit: 3))
   end
@@ -157,6 +150,19 @@ defmodule OgEx.Fonts do
        "font entries must be a font path or font-bytes binary, an OgEx.font/1 marker, " <>
          "{mod, fun, args}, or a zero-arity fun; got: #{inspect(other)}"
      )}
+  end
+
+  defp read_marker_file(resolved, configured) do
+    if File.regular?(resolved) do
+      {:ok, File.read!(resolved)}
+    else
+      {:error,
+       invalid_config_message(
+         "OgEx.font(#{inspect(configured)}) resolved to #{resolved}, which does not exist. " <>
+           "Resolve font paths at runtime with Application.app_dir/2 or OgEx.font/1, and " <>
+           "make sure the file ships inside the release."
+       )}
+    end
   end
 
   defp resolve_lazy(resolver, kind) do

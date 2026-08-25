@@ -39,8 +39,8 @@ defmodule OgEx do
   @doc """
   Builds a lazy font entry for a file below the configured `:otp_app`.
 
-  The marker is resolved when fonts load during a render, so this helper is
-  safe in `config.exs` and `runtime.exs` alike:
+  The marker is resolved when fonts load during a render, so this helper never
+  touches the filesystem:
 
       config :og_ex,
         otp_app: :my_app,
@@ -48,6 +48,11 @@ defmodule OgEx do
 
   Relative paths resolve with `Application.app_dir/2` at load time; absolute
   paths pass through unchanged.
+
+  The return value is the plain `{:ogex_font, path}` tuple. Configuration
+  evaluated before OgEx is compiled, such as `config.exs` during dependency
+  compilation, cannot call this function; use the equivalent literal tuple
+  there instead.
   """
   defdelegate font(path), to: OgEx.Fonts
 

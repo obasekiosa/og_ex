@@ -419,12 +419,13 @@ these entries:
 | Entry | Behavior |
 | --- | --- |
 | `"path/to/font.ttf"` | An existing file is read as font bytes; any other binary passes through unchanged |
-| `OgEx.font("priv/fonts/font.ttf")` | Lazy marker resolved against `config :og_ex, :otp_app` when fonts load |
+| `{:ogex_font, "priv/fonts/font.ttf"}` | Lazy marker resolved against `config :og_ex, :otp_app` when fonts load; plain data, so it stays safe to evaluate from `config.exs` before OgEx is compiled |
 | `{Mod, fun, args}` | Invoked when fonts load; must return a path binary or font bytes |
 | `fn -> path_or_bytes end` | Same contract as an MFA |
 
-`OgEx.font/1` is the recommended form because it never touches the filesystem
-during compilation or boot. Relative marker paths resolve with
+`OgEx.font(path)` returns the same `{:ogex_font, path}` tuple and can be used
+anywhere OgEx is already loaded. Markers never touch the filesystem during
+compilation or boot. Relative marker paths resolve with
 `Application.app_dir/2` and therefore require `config :og_ex, :otp_app`;
 absolute paths resolve directly.
 
@@ -439,7 +440,7 @@ the `:fonts` option.
 ```elixir
 config :og_ex,
   otp_app: :my_app,
-  fonts: [OgEx.font("priv/fonts/font.ttf")],
+  fonts: [{:ogex_font, "priv/fonts/font.ttf"}],
   private_asset_root: "priv/og_ex",
   renderer: OgEx.Renderer.Takumi,
   cache: OgEx.Cache.ETS,

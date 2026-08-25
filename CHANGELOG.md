@@ -19,10 +19,13 @@ and makes page-path signing canonical.
 - Image signatures bound to one page are rejected when replayed against
   another page's image URL (unchanged behavior, now regression-tested).
 - Font configuration accepts lazy entries that never touch the filesystem
-  during compilation, release assembly, or application boot: `OgEx.font/1`
-  markers resolved against `config :og_ex, :otp_app`, `{mod, fun, args}`
-  tuples, and zero-arity functions returning a path or font bytes. Plain
-  binary entries keep their historical behavior.
+  during compilation, release assembly, or application boot: `{:ogex_font,
+  path}` markers resolved against `config :og_ex, :otp_app`, `{mod, fun,
+  args}` tuples, and zero-arity functions returning a path or font bytes.
+  The marker is plain data, so evaluating application config never requires
+  OgEx to be compiled. `OgEx.font/1` returns the same tuple for contexts
+  where OgEx is already loaded. Plain binary entries keep their historical
+  behavior.
 - Invalid font configuration now fails structurally instead of surfacing as a
   native decoding error: image requests return a non-cacheable `503`, OgEx
   logs the exact reason once per node, and application boot warns about

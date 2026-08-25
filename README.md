@@ -66,15 +66,17 @@ import Config
 config :og_ex,
   otp_app: :my_app,
   fonts: [
-    OgEx.font("priv/fonts/Inter-Regular.ttf"),
-    OgEx.font("priv/fonts/Inter-Bold.ttf")
+    {:ogex_font, "priv/fonts/Inter-Regular.ttf"},
+    {:ogex_font, "priv/fonts/Inter-Bold.ttf"}
   ]
 ```
 
-`OgEx.font/1` returns a marker that is resolved when fonts load. Relative paths
-resolve with `Application.app_dir/2` against the configured `otp_app`; absolute
-paths pass through unchanged. Because nothing is read eagerly, the same value
-is safe in `config.exs` and `runtime.exs` alike.
+The `{:ogex_font, path}` entry is plain data, so evaluating your config never
+requires OgEx to be compiled — including when Mix compiles dependencies.
+`OgEx.font(path)` returns exactly that tuple and can be used anywhere OgEx is
+already loaded, such as tests or `runtime.exs`. Relative paths resolve with
+`Application.app_dir/2` against the configured `otp_app`; absolute paths pass
+through unchanged.
 
 The `:fonts` list also accepts:
 
@@ -84,10 +86,11 @@ The `:fonts` list also accepts:
   invoked when fonts load.
 
 The font files must be available inside the deployed release. Keeping them in
-your application's `priv/fonts` directory with `OgEx.font/1` usually makes
-that straightforward. Rendering fails if no font is configured, and an invalid
-entry shape or missing file produces a structured error: image requests return
-a non-cacheable `503` and OgEx logs the exact reason once per node.
+your application's `priv/fonts` directory with a `{:ogex_font, ...}` marker
+usually makes that straightforward. Rendering fails if no font is configured,
+and an invalid entry shape or missing file produces a structured error: image
+requests return a non-cacheable `503` and OgEx logs the exact reason once per
+node.
 
 ## Enable a controller
 
