@@ -1,0 +1,39 @@
+name: Republish HexDocs
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released version to republish docs for (for example 0.3.0)"
+        required: true
+        type: string
+
+jobs:
+  publish_docs:
+    name: HexDocs v${{ inputs.version }}
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The script builds inside a detached worktree at v<version>, so the
+          # tag history must be available.
+          fetch-depth: 0
+
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.3"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.91.0"
+
+      # The script checks out v<version> in its own worktree, copies the
+      # current BENCHMARKS.md in, patches that tag's docs extras, and runs
+      # `mix hex.publish docs`. Package code is never republished.
+      - name: Publish docs for ${{ inputs.version }}
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+          OG_EX_BUILD: "1"
+        run: scripts/publish_hexdocs.sh "${{ inputs.version }}" --yes
