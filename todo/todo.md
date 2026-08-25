@@ -206,3 +206,120 @@ Implementation requirements:
 - Return structured resource errors without caching incomplete card renders.
 - Add tests for path traversal, redirect-based SSRF, oversized responses,
   invalid content types, timeouts, cache reuse, and deterministic local assets.
+
+## Root and trailing-slash path-mode image URLs return 404
+
+Confirmed empirically with a probe against the real router integration
+(2026-08-24): sub-route images work, but two request-shape families fail.
+
+Confirmed failures:
+
+- Root page (`/`): generation emits `/opengraph-image/TOKEN`, which the
+  dispatcher never recognizes, so router and endpoint integrations return
+  an empty 404.
+- Trailing-slash page (`/posts/42/`): the signed image path
+  `/posts/42/opengraph-image/TOKEN` is recognized and dispatched, but
+  verification fails. The page render binds the signature to
+  `conn.request_path` (`"/posts/42/"`, untrimmed via `Request.page_path/1`)
+  while the dispatcher's origin carries the regex-trimmed `"/posts/42"`,
+  so the HMACs differ and the response is an empty 404. Generation trims
+  (`String.trim_trailing/2`) but signing does not: inconsistent
+  canonicalization of `request_path` is the common root cause.
+
+Implementation requirements:
+
+- Pick one canonical page-path form (trimmed), apply it identically in
+  `ConfigBuilder.image_url/4`, `Request.page_path/1`, and the dispatcher
+  origin, and normalize an empty page segment to `"/"`.
+- Relax the recognition pattern to allow a missing page segment for root.
+- Regression tests, all asserting 200 PNG responses, stable ETags, and warm
+  cache hits through both `og_ex_routes()` and the endpoint plug:
+  card on `/`, card on `/posts/42`, card on trailing-slash `/posts/42/`.
+- Keep application routes that intentionally own trailing-slash paths
+  working; document the chosen canonical form.
+
+## Head metadata injection performance
+
+Benchmarks (`BENCHMARKS.md`, head-injection decomposition) show tag
+generation costs ~7 microseconds while whole-body rewriting dominates:
+`String.downcase/1` runs twice (~171 KB allocated per pass on a 10 KB
+document) followed by a full binary rebuild. Full injection measured ~701
+microseconds and ~446 KB versus ~156 microseconds and ~2.7 KB for the same
+response without OgEx.
+
+Hard constraint: injection stays non-destructive. The application's HTML must
+remain byte-for-byte identical outside OgEx's own inserted tags, applications
+must not have to change their HEEx, templates, or root layout, and no user
+markup may be reformatted or normalized. Every candidate below must preserve
+this contract; the assigns-based option is only acceptable if it can be
+installed transparently by `use OgEx.Controller`.
+
+Candidates to benchmark against each other, then keep the winner:
+
+- Single-pass case-insensitive match: reuse one downcased copy for the guard
+  and the insertion search. Search-only allocation; the rebuilt body still
+  slices the original bytes so nothing else changes.
+- Fast-path lowercase match: search for common casings with
+  `:binary.compile_pattern/1` and no downcase allocation at all. Misses
+  exotic casings such as `</HeAd>`.
+- Assigns-based injection: expose the rendered tags as an assign consumed by
+  the root layout so tags are produced during normal rendering without any
+  post-send body rewrite. Only viable if `use OgEx.Controller` can install it
+  without applications editing their layouts, with the string-search path
+  kept as the default fallback.
+
+Requirements: keep escaping guarantees and optional-tag omission; add a
+before/after bench job; memory allocations must drop measurably or the
+approach is rejected.
+
+## Font binary caching
+
+`OgEx.Fonts.load/0` performs `File.read!/1` on every generated-cache miss:
+~16 microseconds plus a ~1 MB binary copied into the NIF per cold render
+(`BENCHMARKS.md`, section on native memory).
+
+Plan:
+
+- Cache loaded font binaries in `:persistent_term`, keyed by the configured
+  font list (paths plus mtime for filesystem entries; byte values pass
+  through unchanged).
+- Invalidate when application configuration changes; expose no new public
+  API beyond current behavior.
+- Re-run the `font load per cache miss` bench job before and after; the miss
+  path should lose the file read entirely.
+- A native parsed-font registry (fonts parsed once inside the NIF) remains a
+  larger future option and should be designed separately.
+
+## Generated-image cache eviction policies
+
+The default `OgEx.Cache.ETS` has no TTL, LRU, or size bound (verified during
+benchmarking: 1000 probe entries all survive; ~40 KB RSS per distinct
+1200x630 card). Capacity grows until the node stops or the owner restarts.
+
+Decisions made:
+
+- Default stays unbounded for backward compatibility with 0.3.x.
+- Opt-in settings, combinable:
+  - `max_entries` and/or `max_bytes` size bounds;
+  - TTL-based expiry;
+  - eviction policy per table: `:none` (default), `:lru`
+    (least-recently-used approximation), or `:clear_all` (reset the table on
+    overflow, matching `OgEx.ResourceCache` semantics).
+
+Implementation requirements:
+
+- Route `put/2` through the GenServer only when a bound, TTL, or policy is
+  active; keep today's lock-free direct `:ets.insert` fast path in unbounded
+  mode.
+- Track per-entry byte sizes for `max_bytes`; store last-access ticks for
+  `:lru` without regressing hit latency beyond an accepted, measured margin.
+- Emit `[:og_ex, :cache, :evict]` telemetry with evicted counts and
+  reclaimed bytes.
+- Document interaction with planned request coalescing
+  (`OgEx.SingleFlight`): eviction must not resurrect the simultaneous-miss
+  storm coalescing exists to prevent.
+- Tests: bound enforcement for entries, bytes, and TTL; LRU ordering;
+  clear-all reset behavior; unbounded default unchanged; owner-restart
+  recovery.
+- Benchmarks: extend `bench/cache_bench.exs` with bounded-versus-unbounded
+  put and hit scenarios; record results in `BENCHMARKS.md`.
