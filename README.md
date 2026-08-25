@@ -55,22 +55,39 @@ and release details.
 ## Configure fonts
 
 Takumi does not read system fonts. OgEx passes the configured font files to the
-renderer on a cache miss:
+renderer on a cache miss. The recommended form resolves lazily against your
+application and never touches the filesystem during compilation or release
+assembly:
 
 ```elixir
 # config/config.exs
 import Config
 
 config :og_ex,
+  otp_app: :my_app,
   fonts: [
-    Path.expand("../priv/fonts/Inter-Regular.ttf", __DIR__),
-    Path.expand("../priv/fonts/Inter-Bold.ttf", __DIR__)
+    OgEx.font("priv/fonts/Inter-Regular.ttf"),
+    OgEx.font("priv/fonts/Inter-Bold.ttf")
   ]
 ```
 
-The paths must be available in the deployed release. Keeping fonts in your
-application's `priv/fonts` directory usually makes that straightforward.
-Rendering fails if no font is configured.
+`OgEx.font/1` returns a marker that is resolved when fonts load. Relative paths
+resolve with `Application.app_dir/2` against the configured `otp_app`; absolute
+paths pass through unchanged. Because nothing is read eagerly, the same value
+is safe in `config.exs` and `runtime.exs` alike.
+
+The `:fonts` list also accepts:
+
+- A plain binary: an existing file path is read, any other binary is treated as
+  already-loaded font bytes.
+- `{mod, fun, args}` or a zero-arity fun returning a path or font bytes,
+  invoked when fonts load.
+
+The font files must be available inside the deployed release. Keeping them in
+your application's `priv/fonts` directory with `OgEx.font/1` usually makes
+that straightforward. Rendering fails if no font is configured, and an invalid
+entry shape or missing file produces a structured error: image requests return
+a non-cacheable `503` and OgEx logs the exact reason once per node.
 
 ## Enable a controller
 

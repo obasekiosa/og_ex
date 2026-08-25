@@ -411,12 +411,35 @@ to `put/2`.
 
 `OgEx.Cache.ETS` is the default per-node implementation.
 
+## Font configuration
+
+Generated-card rendering requires at least one font. The `:fonts` list accepts
+these entries:
+
+| Entry | Behavior |
+| --- | --- |
+| `"path/to/font.ttf"` | An existing file is read as font bytes; any other binary passes through unchanged |
+| `OgEx.font("priv/fonts/font.ttf")` | Lazy marker resolved against `config :og_ex, :otp_app` when fonts load |
+| `{Mod, fun, args}` | Invoked when fonts load; must return a path binary or font bytes |
+| `fn -> path_or_bytes end` | Same contract as an MFA |
+
+`OgEx.font/1` is the recommended form because it never touches the filesystem
+during compilation or boot. Relative marker paths resolve with
+`Application.app_dir/2` and therefore require `config :og_ex, :otp_app`;
+absolute paths resolve directly.
+
+Invalid configuration produces a structured error instead of a native decoding
+failure: image requests return a non-cacheable `503`, OgEx logs the exact
+reason once per node, and application boot warns about entry shapes it does
+not recognize. Renderers always receive fully resolved font binaries through
+the `:fonts` option.
+
 ## Runtime configuration
 
 ```elixir
 config :og_ex,
   otp_app: :my_app,
-  fonts: ["/absolute/path/to/font.ttf"],
+  fonts: [OgEx.font("priv/fonts/font.ttf")],
   private_asset_root: "priv/og_ex",
   renderer: OgEx.Renderer.Takumi,
   cache: OgEx.Cache.ETS,
