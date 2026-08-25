@@ -1,0 +1,22 @@
+Issues & limitations (all empirically hit):
+1. Root-page bug: pages at / emit /opengraph-image/TOKEN which the dispatcher regex can't parse → 404. Non-root paths fine (worked around via /store). Report upstream.
+3. Fonts must resolve at boot (Application.app_dir) and be guarded for the deps.compile phase — both bite.
+
+1. Root-page bug — og_ex builds the image URL by appending to the page path: page /store → /store/opengraph-image/TOKEN. For the home page / it becomes /opengraph-image/TOKEN with no prefix. When a crawler fetches that, og_ex tries to split the URL back into "which page + /opengraph-image/ + token" — with no prefix there's nothing before /opengraph-image, the split fails, and it returns an empty 404. Only affects pages mounted at exactly / — every Orda route (/@handle, /orders/...) has a prefix, so it dodges this naturally.
+3. Font paths computed at the wrong time — og_ex renders text, so it needs font files. I configured them with a path expanded at build time = my laptop's path (/home/seki/...), which doesn't exist inside the Docker container → every render 503'd. Fix: resolve at boot with Application.app_dir(:shop, "priv/fonts/..."). But that call itself crashes during mix deps.compile (the app doesn't exist yet at that phase) → needed a try/rescue guard. Two-phase footgun, now handled in runtime.exs.
+og_ex needs font FILES at render time
+        │
+        ▼
+config.exs is evaluated at BUILD time (mix release bakes values)
+        │  → Path.expand(__DIR__) bakes my laptop's path → 503 in container
+        ▼
+so you move it to runtime.exs with Application.app_dir/2
+        ▼
+BUT runtime.exs ALSO gets evaluated during mix deps.compile
+   (parent config is read when compiling dependencies)
+        │  → Application.app_dir(:shop) raises "unknown application"
+        ▼
+so you need try/rescue around a font path — for EVERY release deploy
+The README documents "paths must be available in the deployed release," but a config value that can crash dependency compilation is a bad failure mode og_ex could design away (lazy {mod, fun} font config, or an OgEx.font/1 helper resolving app_dir itself). Reinstated as: real papercut, og_ex's API shape, not my error.
+
+4. why not used the fully filled in template file with the assigns as the version signature and let the version call back be use to burst caches with values that would be used evaluate this thought deeply pros and cons. and speed impact.

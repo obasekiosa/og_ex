@@ -323,3 +323,33 @@ Implementation requirements:
   recovery.
 - Benchmarks: extend `bench/cache_bench.exs` with bounded-versus-unbounded
   put and hit scenarios; record results in `BENCHMARKS.md`.
+
+## Rendered-output identity for cards without version/1
+
+Idea from consumer feedback (todo/think-about.txt): when a card does not
+define version/1, derive its content identity from the SHA-256 of the fully
+rendered card fragment instead of hashing the raw assigns map. version/1
+remains an explicit override for cache-burst values.
+
+Pros: template and CSS changes automatically change URLs (removing the
+manual layout-revision footgun); assigns the template never uses stop
+affecting identity; most cards lose boilerplate. Cons: volatile assigns
+such as timestamps churn URLs and grow the unbounded cache; page-assigns
+versus loader-assigns divergence becomes a 404 risk for every default
+card rather than only risky version/1 implementations.
+
+Speed impact (0.3.0 baseline): page-request metadata cost roughly doubles
+(plus 50-100 microseconds of HEEx evaluation and hashing on top of the
+34 microsecond config build); warm cache hits gain the same recompute and
+stay under 1 millisecond; cold misses are unchanged because they render
+anyway.
+
+Requirements:
+
+- ConfigBuilder evaluates the card fragment during page requests when
+  version/1 is absent and stores the digest in OgEx.Config for signing
+  and cache keys; image requests recompute identically from loader assigns
+- version/1 override semantics and their tests remain unchanged
+- Document the volatile-assign hazard and the assigns-divergence contract
+- Bench before and after: config-build signing cost and warm-hit cost
+- Sequence after eviction policies land, as the safety net for URL churn
