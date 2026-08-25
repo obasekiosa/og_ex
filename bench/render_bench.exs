@@ -12,7 +12,7 @@ alias OgEx.Renderer.Takumi
 
 import Plug.Conn
 
-fonts = OgEx.Fonts.load()
+{:ok, fonts} = OgEx.Fonts.load()
 
 conn = put_private(Plug.Test.conn(:get, "/posts/42"), :phoenix_endpoint, OgEx.Bench.Endpoint)
 

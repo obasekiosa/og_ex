@@ -37,6 +37,21 @@ defmodule OgEx do
   defdelegate private_asset(path), to: OgEx.Image
 
   @doc """
+  Builds a lazy font entry for a file below the configured `:otp_app`.
+
+  The marker is resolved when fonts load during a render, so this helper is
+  safe in `config.exs` and `runtime.exs` alike:
+
+      config :og_ex,
+        otp_app: :my_app,
+        fonts: [OgEx.font("priv/fonts/Inter-Regular.ttf")]
+
+  Relative paths resolve with `Application.app_dir/2` at load time; absolute
+  paths pass through unchanged.
+  """
+  defdelegate font(path), to: OgEx.Fonts
+
+  @doc """
   Returns the controller that declared the current card.
 
   This is available during declaration-based image loading. It returns `nil`

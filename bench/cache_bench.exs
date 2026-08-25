@@ -21,7 +21,7 @@ Application.put_env(:og_ex, :otp_app, :og_ex)
 
 router = OgEx.Bench.Router.init([])
 
-fonts = OgEx.Fonts.load()
+{:ok, fonts} = OgEx.Fonts.load()
 
 sign_image_path = fn id, assigns ->
   config =

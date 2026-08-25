@@ -26,6 +26,7 @@ defmodule OgEx.Application do
     warn_for_global_remote_access()
     warn_for_trailing_slash_canonicalization()
     ensure_flags_table()
+    OgEx.Fonts.validate_config()
 
     children = [
       OgEx.Cache.ETS,

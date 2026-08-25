@@ -2,6 +2,8 @@ defmodule OgEx.Renderer.TakumiTest do
   use ExUnit.Case, async: true
 
   test "renders HTML and a style block into a correctly sized PNG" do
+    {:ok, fonts} = OgEx.Fonts.load()
+
     html = """
     <main class="card">Hello from OgEx</main>
     <style>
@@ -24,7 +26,7 @@ defmodule OgEx.Renderer.TakumiTest do
                width: 1200,
                height: 630,
                format: :png,
-               fonts: OgEx.Fonts.load()
+               fonts: fonts
              )
 
     # PNG files start with an eight-byte signature followed by the IHDR chunk.
@@ -47,6 +49,8 @@ defmodule OgEx.Renderer.TakumiTest do
   end
 
   test "renders HTML and CSS as a vector SVG document" do
+    {:ok, fonts} = OgEx.Fonts.load()
+
     html = """
     <main class="card">Vector OgEx</main>
     <style>
@@ -68,7 +72,7 @@ defmodule OgEx.Renderer.TakumiTest do
                width: 600,
                height: 600,
                format: :svg,
-               fonts: OgEx.Fonts.load()
+               fonts: fonts
              )
 
     assert svg =~ ~s(<svg xmlns="http://www.w3.org/2000/svg")

@@ -98,33 +98,39 @@ defmodule OgEx.ImageResponse do
     renderer = Application.get_env(:og_ex, :renderer, OgEx.Renderer.Takumi)
     started_at = System.monotonic_time()
 
-    # Fonts are loaded on a cache miss only. A future native font registry can
-    # retain parsed fonts across renders without changing this renderer API.
-    result =
-      renderer.render(
-        html,
-        width: config.width,
-        height: config.height,
-        format: config.format,
-        fonts: OgEx.Fonts.load(),
-        images: images
-      )
-
-    duration = System.monotonic_time() - started_at
-
-    case result do
-      {:ok, image} ->
-        :telemetry.execute(
-          [:og_ex, :render, :stop],
-          %{duration: duration, size: byte_size(image)},
-          %{card: config.card, renderer: renderer}
+    # Fonts are loaded on a cache miss only. Configuration entries resolve
+    # here, so nothing touches the filesystem during compilation or boot.
+    with {:ok, fonts} <- OgEx.Fonts.load() do
+      result =
+        renderer.render(
+          html,
+          width: config.width,
+          height: config.height,
+          format: config.format,
+          fonts: fonts,
+          images: images
         )
 
-      _ ->
-        :ok
-    end
+      duration = System.monotonic_time() - started_at
 
-    result
+      case result do
+        {:ok, image} ->
+          :telemetry.execute(
+            [:og_ex, :render, :stop],
+            %{duration: duration, size: byte_size(image)},
+            %{card: config.card, renderer: renderer}
+          )
+
+        _ ->
+          :ok
+      end
+
+      result
+    else
+      {:error, {:invalid_font_config, message}} = error ->
+        OgEx.Fonts.log_error_once(message)
+        error
+    end
   end
 
   # Maps the public card format atom to its HTTP response media type.
