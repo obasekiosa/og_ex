@@ -1,0 +1,14 @@
+Compiling 1 file (.ex)
+
+== Compilation error in file lib/og_ex/native.ex ==
+** (RuntimeError) Error while downloading precompiled NIF: the precompiled NIF file does not exist in the checksum file. Please consider run: `mix rustler_precompiled.download OgEx.Native --only-local` to generate the checksum file..
+
+You can force the project to build from scratch with:
+
+    config :rustler_precompiled, :force_build, og_ex: true
+
+In order to force the build, you also need to add Rustler as a dependency in your `mix.exs`:
+
+    {:rustler, ">= 0.0.0", optional: true}
+
+    lib/og_ex/native.ex:6: (module)

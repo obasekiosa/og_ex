@@ -36,6 +36,7 @@ defmodule OgEx.MixProject do
       {:req, "~> 0.5"},
       {:rustler_precompiled, "~> 0.9"},
       {:rustler, "~> 0.38", runtime: false},
+      {:benchee, "~> 1.3", only: :dev},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end

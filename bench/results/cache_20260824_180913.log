@@ -1,0 +1,149 @@
+# OgEx baseline
+Date: 2026-08-24T17:09:15Z
+Host: darkPrimus
+OS: linux 6.11.0
+CPU: 13th Gen Intel(R) Core(TM) i9-13900H (20 logical cores)
+Memory: 48941668 kB
+OTP: 28 (erts 16.3.1)
+Elixir: 1.19.5
+OgEx: 0.3.0
+Schedulers online: 20 (dirty CPU: 20)
+Font: ["/usr/share/fonts/opentype/urw-base35/NimbusSans-Regular.otf"]
+signature verify sanity: ok
+
+## Takumi/native memory retention (150 cold renders)
+
+RSS before: 132.1 MB | after: 134.4 MB | peak: 134.4 MB
+RSS delta over 150 renders: 2.3 KB total (~15.68 KB/render retained)
+Average cold render: 17.4 ms
+BEAM processes: 16127848 -> 15899736 bytes (delta -228112)
+BEAM processes_used: 16114384 -> 15887120 bytes (delta -227264)
+BEAM binary: 325656 -> 336824 bytes (delta 11168)
+BEAM ets: 1184192 -> 1184192 bytes (delta 0)
+
+## Generated-image cache footprint and eviction
+
+The default cache is an ETS set owned by OgEx.Cache.ETS with read_concurrency.
+It has no TTL, no LRU, and no size bound: entries live until the node stops or
+the owner process restarts.
+
+Payload: one realistic 1200x630 PNG (41122 bytes)
+ETS table words per entry: 20.3 (~162.5 bytes of key/tuple overhead)
+BEAM binary heap growth per entry: 41224.4 bytes (payload bytes)
+Total cost per cached card: ~40.4 KB; 1000 cards ~= 39.5 MB RSS
+Table size after inserting 1000 probe entries: 1000 (no eviction)
+Probe entries removed; table back to 0 entries.
+
+## Resource-cache eviction behavior
+
+OgEx.ResourceCache is bounded (defaults: 128 entries / 25 MB). On overflow it
+clears the whole table before inserting, which is not LRU. Demonstration with
+max_entries: 4:
+
+Inserted 10 distinct resources with max_entries: 4; table now holds 2 entries.
+(Clear-all on overflow: survivors are whatever was inserted after the last reset.)
+
+## Steady-state latency benchmarks
+
+Operating System: Linux
+CPU Information: 13th Gen Intel(R) Core(TM) i9-13900H
+Number of Available Cores: 20
+Available memory: 46.67 GB
+Elixir 1.19.5
+Erlang 28.4.2
+JIT enabled: true
+
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 6 s
+memory time: 1 s
+reduction time: 1 s
+parallel: 1
+inputs: none specified
+Estimated total run time: 1 min 50 s
+Excluding outliers: false
+
+Benchmarking direct private signed metadata ...
+Benchmarking direct public static metadata ...
+Benchmarking direct remote URL metadata (no fetch) ...
+Benchmarking font load per cache miss ...
+Benchmarking generated-image cache fetch (ETS) ...
+Benchmarking head injection (full rewrite) ...
+Benchmarking image request cold cache ...
+Benchmarking image request warm cache ...
+Benchmarking meta tags build (Meta.to_html) ...
+Benchmarking raw send_resp (no OgEx) ...
+Benchmarking signature verify (HMAC) ...
+Calculating statistics...
+Formatting results...
+
+Name                                            ips        average  deviation         median         99th %
+generated-image cache fetch (ETS)         3001.85 K        0.33 μs  ±4954.22%        0.21 μs        1.16 μs
+signature verify (HMAC)                    223.35 K        4.48 μs   ±499.63%        3.83 μs       10.40 μs
+direct remote URL metadata (no fetch)      144.57 K        6.92 μs   ±329.40%        5.01 μs       37.60 μs
+meta tags build (Meta.to_html)              83.83 K       11.93 μs   ±328.62%        7.66 μs       43.96 μs
+font load per cache miss                    50.88 K       19.65 μs    ±79.82%       15.69 μs       70.66 μs
+direct private signed metadata               5.28 K      189.45 μs    ±48.64%      163.83 μs      579.82 μs
+raw send_resp (no OgEx)                      4.27 K      234.25 μs    ±96.78%      218.32 μs      502.22 μs
+direct public static metadata                3.91 K      255.70 μs    ±74.31%      194.52 μs     1231.36 μs
+image request warm cache                     2.13 K      468.64 μs   ±192.24%      204.96 μs     4737.30 μs
+head injection (full rewrite)                0.65 K     1539.29 μs   ±117.76%      878.80 μs     9097.81 μs
+image request cold cache                   0.0468 K    21361.34 μs    ±35.16%    18423.72 μs    62897.51 μs
+
+Comparison: 
+generated-image cache fetch (ETS)         3001.85 K
+signature verify (HMAC)                    223.35 K - 13.44x slower +4.14 μs
+direct remote URL metadata (no fetch)      144.57 K - 20.76x slower +6.58 μs
+meta tags build (Meta.to_html)              83.83 K - 35.81x slower +11.60 μs
+font load per cache miss                    50.88 K - 59.00x slower +19.32 μs
+direct private signed metadata               5.28 K - 568.69x slower +189.11 μs
+raw send_resp (no OgEx)                      4.27 K - 703.18x slower +233.92 μs
+direct public static metadata                3.91 K - 767.57x slower +255.37 μs
+image request warm cache                     2.13 K - 1406.79x slower +468.31 μs
+head injection (full rewrite)                0.65 K - 4620.71x slower +1538.96 μs
+image request cold cache                   0.0468 K - 64123.50x slower +21361.01 μs
+
+Memory usage statistics:
+
+Name                                     Memory usage
+generated-image cache fetch (ETS)             0.24 KB
+signature verify (HMAC)                       0.53 KB - 2.19x memory usage +0.29 KB
+direct remote URL metadata (no fetch)         3.17 KB - 13.10x memory usage +2.93 KB
+meta tags build (Meta.to_html)                7.09 KB - 29.26x memory usage +6.84 KB
+font load per cache miss                      0.91 KB - 3.77x memory usage +0.67 KB
+direct private signed metadata               25.64 KB - 105.87x memory usage +25.40 KB
+raw send_resp (no OgEx)                       2.68 KB - 11.06x memory usage +2.44 KB
+direct public static metadata                34.88 KB - 144.00x memory usage +34.63 KB
+image request warm cache                    136.98 KB - 565.58x memory usage +136.73 KB
+head injection (full rewrite)               445.80 KB - 1840.71x memory usage +445.55 KB
+image request cold cache                    150.10 KB - 619.77x memory usage +149.86 KB
+
+**All measurements for memory usage were the same**
+
+Reduction count statistics:
+
+Name                                          average  deviation         median         99th %
+generated-image cache fetch (ETS)           0.00200 K     ±0.00%      0.00200 K      0.00200 K
+signature verify (HMAC)                      0.0730 K     ±0.00%       0.0730 K       0.0730 K
+direct remote URL metadata (no fetch)          0.21 K     ±0.00%         0.21 K         0.21 K
+meta tags build (Meta.to_html)                 1.39 K     ±0.00%         1.39 K         1.39 K
+font load per cache miss                     0.0890 K     ±0.00%       0.0890 K       0.0890 K
+direct private signed metadata                 3.50 K     ±1.39%         3.49 K         3.66 K
+raw send_resp (no OgEx)                        0.21 K     ±0.00%         0.21 K         0.21 K
+direct public static metadata                  3.23 K     ±3.00%         3.20 K         3.68 K
+image request warm cache                       4.96 K     ±0.00%         4.96 K         4.96 K
+head injection (full rewrite)                 38.64 K     ±0.00%        38.64 K        38.64 K
+image request cold cache                      97.73 K    ±43.77%        77.11 K       235.54 K
+
+Comparison: 
+generated-image cache fetch (ETS)           0.00200 K
+signature verify (HMAC)                      0.0730 K - 36.50x reduction count +0.0710 K
+direct remote URL metadata (no fetch)          0.21 K - 102.50x reduction count +0.20 K
+meta tags build (Meta.to_html)                 1.39 K - 693.00x reduction count +1.38 K
+font load per cache miss                     0.0890 K - 44.50x reduction count +0.0870 K
+direct private signed metadata                 3.50 K - 1747.61x reduction count +3.49 K
+raw send_resp (no OgEx)                        0.21 K - 106.50x reduction count +0.21 K
+direct public static metadata                  3.23 K - 1617.09x reduction count +3.23 K
+image request warm cache                       4.96 K - 2478.00x reduction count +4.95 K
+head injection (full rewrite)                 38.64 K - 19318.00x reduction count +38.63 K
+image request cold cache                      97.73 K - 48867.21x reduction count +97.73 K
