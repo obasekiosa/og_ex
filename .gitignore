@@ -9,3 +9,4 @@ erl_crash.dump
 .env
 /og-ex.code-workspace
 /gh_token
+/hex_key
