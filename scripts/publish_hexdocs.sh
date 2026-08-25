@@ -94,11 +94,12 @@ mix_exs="$worktree/mix.exs"
 if grep -q '"BENCHMARKS.md"' "$mix_exs"; then
   echo "    extras already reference BENCHMARKS.md; nothing to patch"
 else
-  # Insert the extra as the first entry of `extras` and add a Benchmarks
-  # sidebar group as the first entry of `groups_for_extras`. Anchoring on
-  # those two lines works for every release format so far.
+  # Insert the extra as the first entry of `extras` and slot the Benchmarks
+  # sidebar group between Guides and Maintainers so republished versions keep
+  # the same group order as master. Anchoring on those lines works for every
+  # release format so far.
   sed -i 's|^      extras: \[$|      extras: [\n        "BENCHMARKS.md",|' "$mix_exs"
-  sed -i 's|^      groups_for_extras: \[$|      groups_for_extras: [\n        Benchmarks: ["BENCHMARKS.md"],|' "$mix_exs"
+  sed -i 's|^        Maintainers: \[|        Benchmarks: ["BENCHMARKS.md"],\n        Maintainers: [|' "$mix_exs"
 
   if ! grep -q '"BENCHMARKS.md"' "$mix_exs"; then
     echo "error: could not patch extras in $mix_exs; inspect the file manually" >&2
