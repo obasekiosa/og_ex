@@ -126,6 +126,18 @@ if [[ "$dry_run" == true ]]; then
 fi
 
 echo "==> publishing docs for $version (package code is not republished)"
-(cd "$worktree" && HEX_API_KEY="$HEX_API_KEY" "${publish_command[@]}")
+# `mix hex.publish docs` can report failure while still exiting zero, so the
+# output is inspected instead of trusted.
+set +e
+publish_output="$(cd "$worktree" && HEX_API_KEY="$HEX_API_KEY" "${publish_command[@]}" 2>&1)"
+publish_status=$?
+set -e
+echo "$publish_output" | tail -n 3
+
+if [[ $publish_status -ne 0 ]] || grep -q "Publishing docs failed" <<<"$publish_output"; then
+  echo "error: docs publish failed; hex.pm was not changed. Retry when the" >&2
+  echo "network is stable, or run this script from CI." >&2
+  exit 1
+fi
 
 echo "==> done: https://hexdocs.pm/og_ex/$version"
