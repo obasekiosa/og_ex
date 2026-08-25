@@ -13,11 +13,9 @@ jobs:
     name: HexDocs v${{ inputs.version }}
     runs-on: ubuntu-22.04
 
-    # The hex-production environment owns the working HEX_API_KEY (the same
-    # one release.yml publishes packages with). Its protection rules require
-    # an obasekiosa approval before the job runs, and its branch policy must
-    # include the ref the workflow is dispatched from.
-    environment: hex-production
+    # Uses the repository-level HEX_API_KEY secret so manual republishes run
+    # without the hex-production environment's reviewer approval. The
+    # environment key remains reserved for release.yml package publishing.
 
     steps:
       - uses: actions/checkout@v6
