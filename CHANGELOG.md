@@ -2,8 +2,9 @@
 
 ## 0.3.1
 
-This release fixes path-mode image dispatch for root and trailing-slash pages
-and makes page-path signing canonical.
+This release fixes path-mode image dispatch for root and trailing-slash pages,
+makes page-path signing canonical, and rebuilds font configuration around lazy
+entries that never touch the filesystem during compilation.
 
 - Path-mode images now work on the root page: `/` signs
   `/opengraph-image/TOKEN` URLs that dispatch correctly through both router
@@ -30,6 +31,9 @@ and makes page-path signing canonical.
   native decoding error: image requests return a non-cacheable `503`, OgEx
   logs the exact reason once per node, and application boot warns about
   unrecognized entry shapes.
+- A Benchee benchmark suite with the recorded 0.3.0 baseline lives in
+  `bench/`, and the published report in BENCHMARKS.md explains how to
+  reproduce it.
 
 ## 0.3.0
 

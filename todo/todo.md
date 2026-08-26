@@ -326,7 +326,7 @@ Implementation requirements:
 
 ## Rendered-output identity for cards without version/1
 
-Idea from consumer feedback (todo/think-about.txt): when a card does not
+Idea from consumer feedback: when a card does not
 define version/1, derive its content identity from the SHA-256 of the fully
 rendered card fragment instead of hashing the raw assigns map. version/1
 remains an explicit override for cache-burst values.

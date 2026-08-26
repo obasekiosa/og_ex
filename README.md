@@ -20,9 +20,11 @@ request runs the card loader without running the normal page action.
 
 ## Release status
 
-OgEx `0.3.0` is the current release. It adds controller declarations,
-card-local loaders, path/query selection, and router/endpoint integrations.
-The `0.2.0` render declaration remains available as a migration path.
+OgEx `0.3.1` is the current release. It fixes path-mode image dispatch for
+root and trailing-slash pages, canonicalizes page-path signing, and accepts
+lazy font configuration that never touches the filesystem during compilation
+or release assembly. The `0.2.0` render declaration remains available as a
+migration path.
 
 OgEx is still a `0.x` package. Review release notes before upgrading because
 minor releases may change public APIs.
