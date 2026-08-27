@@ -4,6 +4,44 @@ This document describes the implementation boundaries maintainers and adapter
 authors need to understand. It is not a second setup guide; application usage
 belongs in the README and public API reference.
 
+```mermaid
+flowchart TD
+  A[Browser GET /posts/42] --> B[Controller action]
+  B --> C{OgEx.Controller render/3 wrapper}
+  C -->|page request| D[ConfigBuilder.build + sign]
+  D --> E[Head.put_config + Phoenix render]
+  E --> F[Head injection before </head>]
+  F --> G[HTML with signed og:image]
+
+  H[Crawler GET /opengraph-image/TOKEN] --> I{Dispatcher}
+  I -->|Router og_ex_routes / Plug OgEx| J[route_info + verify signature]
+  J --> K[Request.put_origin trusted context]
+  K --> L[Card.load/2]
+  L --> M[HTML.render HEEx]
+  M --> N[Resources.load + fingerprint]
+  N --> O{Cache.ETS lookup}
+  O -->|hit| P[200 immutable + ETag]
+  O -->|miss| Q[Takumi NIF dirty CPU]
+  Q --> R[Cache insert]
+  R --> P
+
+  S[Direct image metadata] -.-> D
+  T[Fonts lazy {:ogex_font}] -.-> Q
+
+  classDef edge stroke-dasharray: 5 5;
+  class S,T edge
+```
+
+<details>
+<summary>Text version</summary>
+
+```
+Page: Browser -> Controller -> ConfigBuilder sign -> Head inject -> HTML+meta
+Image: Crawler -> Dispatcher (Router/Plug) -> verify -> Card.load -> HTML render -> Resources -> Cache hit? -> Takumi -> 200
+```
+
+</details>
+
 ## Controller dispatch
 
 `OgEx.Controller.__using__/1` imports the `og_card` declaration macros,

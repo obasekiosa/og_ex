@@ -106,7 +106,42 @@ defmodule OgEx.MixProject do
       skip_undefined_reference_warnings_on: [
         "docs/internal-architecture.md",
         "BENCHMARKS.md"
-      ]
+      ],
+      before_closing_head_tag: &before_closing_head_tag/1,
+      before_closing_body_tag: &before_closing_body_tag/1
     ]
   end
+
+  defp before_closing_head_tag(:html) do
+    """
+    <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10.2.3/dist/mermaid.min.js"></script>
+    """
+  end
+
+  defp before_closing_head_tag(_), do: ""
+
+  defp before_closing_body_tag(:html) do
+    """
+    <script>
+      window.addEventListener("exdoc:loaded", () => {
+        if (window.mermaid) {
+          mermaid.initialize({ startOnLoad: false, theme: document.body.className.includes("dark") ? "dark" : "default" });
+          let id = 0;
+          for (const codeEl of document.querySelectorAll("pre code.mermaid")) {
+            const preEl = codeEl.parentElement;
+            const graphDefinition = codeEl.textContent;
+            const graphEl = document.createElement("div");
+            graphEl.classList.add("mermaid");
+            graphEl.textContent = graphDefinition;
+            preEl.replaceWith(graphEl);
+            mermaid.init(undefined, graphEl);
+            id++;
+          }
+        }
+      });
+    </script>
+    """
+  end
+
+  defp before_closing_body_tag(_), do: ""
 end
