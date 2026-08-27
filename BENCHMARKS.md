@@ -1,27 +1,31 @@
 # OgEx Benchmarks
 
-Baseline performance measurements for OgEx 0.3.0 covering the Takumi native
+Baseline performance measurements for OgEx 0.3.1 covering the Takumi native
 renderer, the complete request lifecycle, the generated-image cache, native
 memory retention, and direct-image metadata builds.
 
 - Benchmark code: `bench/`
-- Raw machine-readable logs: `bench/results/*.log`
+- Raw machine-readable logs: `bench/results/*.log` (per-version, e.g. `render_20260826_233120.log`)
 - Measurement tool: [Benchee](https://hex.pm/packages/benchee) 1.5.1
   (warmup 2 s, measurement 5–6 s per scenario, memory and reduction tracking
   enabled, single process, no parallelism)
+
+> This document reflects a single version. Each hexdocs release snapshots the
+> benchmarks for that version; historical logs remain in `bench/results/` but
+> are not duplicated here.
 
 ## Environment
 
 | Item | Value |
 | --- | --- |
-| Date | 2026-08-24 (UTC) |
+| Date | 2026-08-26 (UTC) |
 | Host | darkPrimus |
 | OS | Linux 6.11.0 |
 | CPU | 13th Gen Intel Core i9-13900H, 20 logical cores |
 | Memory | 48 GB |
 | OTP | 28 (erts 16.3.1), JIT enabled |
 | Elixir | 1.19.5 |
-| OgEx | 0.3.0, locally built native NIF (`OG_EX_BUILD=1`) |
+| OgEx | 0.3.1, locally built native NIF (`OG_EX_BUILD=1`) |
 | Font | NimbusSans-Regular.otf (single configured font) |
 
 ### Reproducing
@@ -62,12 +66,12 @@ Takumi render.
 
 | Format | ips | average | median | 99th % |
 | --- | ---: | ---: | ---: | ---: |
-| SVG 600x600 | 505.46 | 1.98 ms | 2.11 ms | 3.79 ms |
-| SVG 1200x630 | 253.45 | 3.95 ms | 3.24 ms | 8.96 ms |
-| PNG 600x600 | 65.25 | 15.33 ms | 14.02 ms | 30.88 ms |
-| PNG 1200x630 | 16.70 | 59.88 ms | 62.49 ms | 98.78 ms |
-| WebP 1200x630 | 15.34 | 65.21 ms | 60.85 ms | 123.88 ms |
-| JPEG 1200x630 | 11.36 | 88.00 ms | 86.61 ms | 135.79 ms |
+| SVG 600x600 | 2303.33 | 0.43 ms | 0.39 ms | 1.30 ms |
+| SVG 1200x630 | 820.37 | 1.22 ms | 1.12 ms | 2.72 ms |
+| PNG 600x600 | 190.37 | 5.25 ms | 4.67 ms | 14.95 ms |
+| PNG 1200x630 | 48.96 | 20.43 ms | 18.40 ms | 52.71 ms |
+| WebP 1200x630 | 42.50 | 23.53 ms | 22.71 ms | 33.27 ms |
+| JPEG 1200x630 | 37.45 | 26.70 ms | 25.57 ms | 52.72 ms |
 
 Encoded output size for one realistic wide card:
 
@@ -79,21 +83,24 @@ Encoded output size for one realistic wide card:
 | JPEG | 60,649 |
 
 Cold first-render per format (includes lazy NIF/font initialization):
-PNG 110.8 ms, JPEG 119.9 ms, WebP 88.9 ms, SVG 3.0 ms.
+PNG 23.9 ms, JPEG 65.3 ms, WebP 26.8 ms, SVG 1.7 ms.
 
 Observations:
 
 - Rasterized bitmap formats cost roughly the same order of magnitude;
   encoding choice shifts the total by ~50%. SVG skips rasterization entirely
-  and is ~20x faster than PNG.
+  and is ~20x faster than PNG at steady state.
 - The NIF runs on dirty CPU schedulers, so renders do not block normal
   schedulers; throughput scales with cores for concurrent crawler traffic.
-- Repeated identical inputs get measurably faster (~2x) as the native side
-  warms up; benchmark medians include this warm-up.
+- Repeated identical inputs get measurably faster as the native side warms up;
+  benchmark medians include this warm-up.
 - Absolute numbers vary noticeably between runs on this laptop (a pure-Takumi
   wide-card render measured anywhere from ~18 ms to ~62 ms median across
-  sessions) due to turbo/thermal states. Compare ratios within one log, not
-  absolute values across logs.
+  sessions in 0.3.0 baselines) due to turbo/thermal states. Compare ratios
+  within one log, not absolute values across logs. 0.3.1 steady-state renders
+  measured ~3× faster than the 0.3.0 session on the same host — well within
+  expected inter-session variance; ratios and memory/reduction profiles are
+  stable.
 
 ## 2. Request lifecycle
 
@@ -102,25 +109,28 @@ declarations:
 
 | Scenario | ips | median | 99th % | memory/op |
 | --- | ---: | ---: | ---: | ---: |
-| Card load dispatch (`__og_ex_load__`) | 73.56 K | 8.05 µs | 42.89 µs | 2.30 KB |
-| Endpoint plug pass-through (no card) | 44.77 K | 15.48 µs | 75.45 µs | 2.73 KB |
-| Config build + signing | 19.12 K | 33.75 µs | 196.02 µs | 6.45 KB |
-| HTML page request (card declared) | 1.84 K | 388.89 µs | 4409.84 µs | 31.89 KB |
-| Image request warm cache | 1.00 K | 694.67 µs | 5818.07 µs | 136.98 KB |
-| Head injection (isolated) | 0.48 K | 1673.44 µs | 5595.25 µs | 445.80 KB |
-| Image request cold cache | 0.0172 K | 58118.53 µs | 100116.31 µs | 150.05 KB |
+| Card load dispatch (`__og_ex_load__`) | 191.63 K | 4.12 µs | 17.55 µs | 2.30 KB |
+| Endpoint plug pass-through (no card) | 175.78 K | 4.54 µs | 17.90 µs | 2.60 KB |
+| Config build + signing | 52.28 K | 16.21 µs | 65.14 µs | 6.83 KB |
+| HTML page request (card declared) | 3.32 K | 205.40 µs | 3855.46 µs | 33.84 KB |
+| Image request warm cache | 2.21 K | 205.60 µs | 4851.20 µs | 136.67 KB |
+| Head injection (isolated) | 0.96 K | 732.71 µs | 4592.91 µs | 445.80 KB |
+| Image request cold cache | 0.0503 K | 17986.11 µs | 35210.76 µs | 150.27 KB |
 
 Observations:
 
 - Cold image requests are completely dominated by Takumi rendering:
-  lifecycle cold (~58 ms median) ≈ renderer steady-state PNG time. Everything
+  lifecycle cold (~18 ms median) ≈ renderer steady-state PNG time. Everything
   OgEx adds around a miss (routing, loading, signing, verification, HEEx,
   resource scan) costs under 2 ms combined.
-- Warm cache hits serve in well under 1 ms (roughly 80–90x faster than a
-  miss) because the hit path is verify + ETS lookup + header/body assembly.
+- Warm cache hits serve in ~200 µs (≈90× faster than a miss) because the hit
+  path is verify + ETS lookup + header/body assembly.
 - Signing (two HMAC-SHA256 truncations per page render) costs tens of
   microseconds; it is not a bottleneck even on high-traffic HTML pages.
-- The endpoint plug candidate check adds ~10 µs to ordinary non-OgEx requests.
+- The endpoint plug candidate check adds ~5 µs to ordinary non-OgEx requests.
+- HTML page cost and head-injection cost are ~2× lower than the 0.3.0
+  session — consistent with inter-session turbo variance, not a code delta.
+  Head injection remains the dominant page-path cost (see §6).
 
 ## 3. Generated-image cache
 
@@ -132,9 +142,9 @@ owner. Reads bypass the GenServer mailbox entirely.
 
 | Scenario | ips | median | memory/op |
 | --- | ---: | ---: | ---: |
-| Direct `OgEx.Cache.fetch/1` (ETS get) | 3001.85 K | 0.21 µs | 0.24 KB |
-| Signature verify (HMAC compare) | 223.35 K | 3.83 µs | 0.53 KB |
-| Full warm request through router | 2.13 K | 204.96 µs | 136.98 KB |
+| Direct `OgEx.Cache.fetch/1` (ETS get) | 2729.29 K | 0.21 µs | 0.24 KB |
+| Signature verify (HMAC compare) | 219.72 K | 3.87 µs | 0.68 KB |
+| Full warm request through router | 2.17 K | 231.11 µs | 136.67 KB |
 
 The raw ETS fetch is effectively free; the warm-request cost above is almost
 entirely Plug conn construction, route resolution, config building, HMAC
@@ -175,11 +185,10 @@ via process RSS (captures native heap that BEAM statistics cannot see):
 
 | Metric | Value |
 | --- | --- |
-| Average cold render | 17.4–19.9 ms (varies by session) |
-| RSS delta over 150 renders | −0.2 to +2.3 KB total |
-| Retained per render | ~0.4–16 KB, trending to zero drift |
-| Peak RSS during loop | within ~2 MB of baseline |
-| BEAM processes/binary/ets deltas | ≤ ±0.3 MB, no growth trend |
+| Average cold render | 18.4 ms |
+| RSS before / after / peak | 133.5 MB / 134.4 MB / 134.4 MB |
+| RSS delta over 150 renders | 0.9 KB total (~6.05 KB/render retained) |
+| BEAM processes/binary/ets deltas | −249 KB / +11 KB / 0 KB, no growth trend |
 
 No leak detected: repeated renders return their native allocations; RSS stays
 flat. Per-render garbage (layout trees, pixel buffers, encoded output) is
@@ -187,7 +196,7 @@ freed by the native allocator.
 
 One avoidable per-miss cost lives on the Elixir side: `OgEx.Fonts.load/0`
 re-reads the configured font file on **every cache miss**
-(15.7 µs median, 0.91 KB BEAM-side; the file itself is ~1 MB passed into the
+(19.8 µs median, 1.05 KB BEAM-side; the file itself is ~1 MB passed into the
 NIF). A font registry that parses once would shave a little latency and some
 I/O from every cold render.
 
@@ -198,9 +207,9 @@ normal page:
 
 | Strategy | ips | median | memory/op |
 | --- | ---: | ---: | ---: |
-| Remote URL (no fetch by design) | 144.57 K | 5.01 µs | 3.17 KB |
-| Private local file (read + inspect + sign) | 5.28 K | 163.83 µs | 25.64 KB |
-| Public static file (read + inspect) | 3.91 K | 194.52 µs | 34.88 KB |
+| Remote URL (no fetch by design) | 171.21 K | 4.90 µs | 3.17 KB |
+| Private local file (read + inspect + sign) | 5.42 K | 164.18 µs | 26.27 KB |
+| Public static file (read + inspect) | 4.60 K | 186.24 µs | 34.86 KB |
 
 Local files pay one filesystem read plus security checks (traversal/symlink
 walk) per image per page render (hundreds of microseconds, worth remembering
@@ -209,15 +218,15 @@ for pages that declare several direct images).
 ## 6. Head-injection decomposition
 
 Why is `<meta>` insertion measurably expensive? Broken down on a ~10.4 KB
-HTML document (median values):
+HTML document (0.3.1 medians in parens; 0.3.0 §6 for comparison):
 
 | Step | Median | Allocated |
 | --- | ---: | ---: |
-| Build the meta tags themselves (`Meta.to_html`) | 6.68 µs | 7.12 KB |
-| `String.downcase(body)` + scan for `</head>` | 140.22 µs | 170.89 KB |
-| Split + rebuild body around the tags | 186.34 µs | 170.86 KB |
-| Same response, no OgEx (raw `send_resp`) | 156.43 µs | 2.68 KB |
-| Full head injection | 701.04 µs | 445.71 KB |
+| Build the meta tags themselves (`Meta.to_html`) | 7.58 µs | 7.09 KB |
+| `String.downcase(body)` + scan for `</head>` | ~140 µs (0.3.0) | ~171 KB |
+| Split + rebuild body around the tags | ~186 µs (0.3.0) | ~171 KB |
+| Same response, no OgEx (raw `send_resp`) | 222.07 µs | 2.68 KB |
+| Full head injection | 732.71 µs (lifecycle) / 998.86 µs (isolated) | 445.80 KB |
 
 Findings:
 
@@ -225,7 +234,7 @@ Findings:
   the document is lowercased and scanned **twice** (once for the `contains?`
   guard, once to locate the insertion point), and then rebuilt as a new
   binary. Each `String.downcase/1` alone allocates ~16x the document size.
-- Net effect on a 10 KB page: ~4.5x response-path latency and ~165x memory
+- Net effect on a 10 KB page: ~3–4× response-path latency and ~165× memory
   versus the same response without OgEx. Cost scales linearly with page size.
 - Cheap wins if this ever matters: lowercase-search only once (reuse the
   downcased copy or search for both `</head>` casings with
@@ -236,7 +245,11 @@ Findings:
 
 - Laptop turbo/thermal states moved pure-render medians up to ~3x between
   sessions. Within-run ratios are stable; cross-run absolutes are not.
+  0.3.1 measured faster than 0.3.0 on the same host — expected variance.
 - Benchee's memory counter covers the benchmarked process only. Native
   allocations require external observation (RSS sampling, as in section 4).
 - Cold-cache scenarios insert every rendered card into the unbounded ETS
   cache; long benchmark sessions grow RSS by design (see section 3).
+- Historical logs remain in `bench/results/` (e.g. `*_20260824_*.log` for
+  0.3.0) but are not duplicated here; each version's document shows only that
+  version's baseline.

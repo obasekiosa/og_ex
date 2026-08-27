@@ -1,0 +1,97 @@
+
+23:32:22.216 [warning] OgEx now signs image URLs with trimmed page paths ("/path/" -> "/path"). Trailing-slash URLs from older versions still work this release but are deprecated and will be removed in a future version.
+# OgEx baseline
+Date: 2026-08-26T22:32:22Z
+Host: darkPrimus
+OS: linux 6.11.0
+CPU: 13th Gen Intel(R) Core(TM) i9-13900H (20 logical cores)
+Memory: 48941656 kB
+OTP: 28 (erts 16.3.1)
+Elixir: 1.19.5
+OgEx: 0.3.1
+Schedulers online: 20 (dirty CPU: 20)
+Font: ["/usr/share/fonts/opentype/urw-base35/NimbusSans-Regular.otf"]
+
+## Lifecycle sanity checks
+
+warm image response: 200 ["image/png"]
+cold image response: 200 ["image/png"]
+page html response: 200, meta injected: true
+Operating System: Linux
+CPU Information: 13th Gen Intel(R) Core(TM) i9-13900H
+Number of Available Cores: 20
+Available memory: 46.67 GB
+Elixir 1.19.5
+Erlang 28.4.2
+JIT enabled: true
+
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 5 s
+memory time: 1 s
+reduction time: 1 s
+parallel: 1
+inputs: none specified
+Estimated total run time: 1 min 3 s
+Excluding outliers: false
+
+Benchmarking card load dispatch ...
+Benchmarking config build + signing ...
+Benchmarking endpoint pass-through (no card) ...
+Benchmarking head injection ...
+Benchmarking html page request ...
+Benchmarking image request cold cache ...
+Benchmarking image request warm cache ...
+Calculating statistics...
+Formatting results...
+
+Name                                      ips        average  deviation         median         99th %
+card load dispatch                   191.63 K        5.22 μs   ±449.32%        4.12 μs       17.55 μs
+endpoint pass-through (no card)      175.78 K        5.69 μs   ±235.16%        4.54 μs       17.90 μs
+config build + signing                52.28 K       19.13 μs    ±80.02%       16.21 μs       65.14 μs
+html page request                      3.32 K      301.34 μs   ±196.34%      205.40 μs     3855.46 μs
+image request warm cache               2.21 K      451.70 μs   ±200.89%      205.60 μs     4851.20 μs
+head injection                         0.96 K     1041.30 μs    ±86.81%      732.71 μs     4592.91 μs
+image request cold cache             0.0503 K    19887.37 μs    ±21.90%    17986.11 μs    35210.76 μs
+
+Comparison: 
+card load dispatch                   191.63 K
+endpoint pass-through (no card)      175.78 K - 1.09x slower +0.47 μs
+config build + signing                52.28 K - 3.67x slower +13.91 μs
+html page request                      3.32 K - 57.75x slower +296.12 μs
+image request warm cache               2.21 K - 86.56x slower +446.49 μs
+head injection                         0.96 K - 199.54x slower +1036.08 μs
+image request cold cache             0.0503 K - 3810.97x slower +19882.15 μs
+
+Memory usage statistics:
+
+Name                               Memory usage
+card load dispatch                      2.30 KB
+endpoint pass-through (no card)         2.60 KB - 1.13x memory usage +0.30 KB
+config build + signing                  6.83 KB - 2.97x memory usage +4.53 KB
+html page request                      33.84 KB - 14.73x memory usage +31.54 KB
+image request warm cache              136.67 KB - 59.50x memory usage +134.38 KB
+head injection                        445.80 KB - 194.09x memory usage +443.50 KB
+image request cold cache              150.27 KB - 65.42x memory usage +147.97 KB
+
+**All measurements for memory usage were the same**
+
+Reduction count statistics:
+
+Name                                    average  deviation         median         99th %
+card load dispatch                      0.161 K     ±0.00%        0.161 K        0.161 K
+endpoint pass-through (no card)         0.194 K     ±0.00%        0.194 K        0.194 K
+config build + signing                   0.75 K     ±0.00%         0.75 K         0.75 K
+html page request                        3.07 K     ±0.00%         3.07 K         3.07 K
+image request warm cache                 4.97 K     ±0.00%         4.97 K         4.97 K
+head injection                          38.64 K     ±0.00%        38.64 K        38.64 K
+image request cold cache                86.55 K    ±22.42%        78.84 K       142.51 K
+
+Comparison: 
+card load dispatch                      0.161 K
+endpoint pass-through (no card)         0.194 K - 1.20x reduction count +0.0330 K
+config build + signing                   0.75 K - 4.63x reduction count +0.58 K
+html page request                        3.07 K - 19.08x reduction count +2.91 K
+image request warm cache                 4.97 K - 30.89x reduction count +4.81 K
+head injection                          38.64 K - 239.98x reduction count +38.48 K
+image request cold cache                86.55 K - 537.59x reduction count +86.39 K

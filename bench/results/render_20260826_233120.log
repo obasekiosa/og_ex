@@ -1,0 +1,99 @@
+Compiling 5 files (.ex)
+Compiling crate og_ex_native in release mode (native/og_ex_native)
+Copying /home/seki/devs/ship/og-ex/native/og_ex_native/target/release/libog_ex_native.so to priv/native/og_ex_native.so
+Generated og_ex app
+
+23:31:20.106 [warning] OgEx now signs image URLs with trimmed page paths ("/path/" -> "/path"). Trailing-slash URLs from older versions still work this release but are deprecated and will be removed in a future version.
+# OgEx baseline
+Date: 2026-08-26T22:31:20Z
+Host: darkPrimus
+OS: linux 6.11.0
+CPU: 13th Gen Intel(R) Core(TM) i9-13900H (20 logical cores)
+Memory: 48941656 kB
+OTP: 28 (erts 16.3.1)
+Elixir: 1.19.5
+OgEx: 0.3.1
+Schedulers online: 20 (dirty CPU: 20)
+Font: ["/usr/share/fonts/opentype/urw-base35/NimbusSans-Regular.otf"]
+
+## Cold first-render per format (1200x630)
+
+png 1200x630: 23.88ms (50659 bytes)
+jpeg 1200x630: 65.298ms (60649 bytes)
+webp 1200x630: 26.841ms (27278 bytes)
+svg 1200x630: 1.669ms (22360 bytes)
+
+## Steady-state render latency
+
+Operating System: Linux
+CPU Information: 13th Gen Intel(R) Core(TM) i9-13900H
+Number of Available Cores: 20
+Available memory: 46.67 GB
+Elixir 1.19.5
+Erlang 28.4.2
+JIT enabled: true
+
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 5 s
+memory time: 1 s
+reduction time: 1 s
+parallel: 1
+inputs: none specified
+Estimated total run time: 54 s
+Excluding outliers: false
+
+Benchmarking jpeg 1200x630 ...
+Benchmarking png 1200x630 ...
+Benchmarking png 600x600 ...
+Benchmarking svg 1200x630 ...
+Benchmarking svg 600x600 ...
+Benchmarking webp 1200x630 ...
+Calculating statistics...
+Formatting results...
+
+Name                    ips        average  deviation         median         99th %
+svg 600x600         2303.33        0.43 ms    ±41.55%        0.39 ms        1.30 ms
+svg 1200x630         820.37        1.22 ms    ±26.36%        1.12 ms        2.72 ms
+png 600x600          190.37        5.25 ms    ±37.12%        4.67 ms       14.95 ms
+png 1200x630          48.96       20.43 ms    ±27.47%       18.40 ms       52.71 ms
+webp 1200x630         42.50       23.53 ms     ±9.26%       22.71 ms       33.27 ms
+jpeg 1200x630         37.45       26.70 ms    ±14.99%       25.57 ms       52.72 ms
+
+Comparison: 
+svg 600x600         2303.33
+svg 1200x630         820.37 - 2.81x slower +0.78 ms
+png 600x600          190.37 - 12.10x slower +4.82 ms
+png 1200x630          48.96 - 47.05x slower +19.99 ms
+webp 1200x630         42.50 - 54.20x slower +23.10 ms
+jpeg 1200x630         37.45 - 61.51x slower +26.27 ms
+
+Memory usage statistics:
+
+Name             Memory usage
+svg 600x600             312 B
+svg 1200x630            312 B - 1.00x memory usage +0 B
+png 600x600             312 B - 1.00x memory usage +0 B
+png 1200x630            312 B - 1.00x memory usage +0 B
+webp 1200x630           312 B - 1.00x memory usage +0 B
+jpeg 1200x630           312 B - 1.00x memory usage +0 B
+
+**All measurements for memory usage were the same**
+
+Reduction count statistics:
+
+Name                  average  deviation         median         99th %
+svg 600x600            1.86 K    ±53.17%         1.54 K         6.87 K
+svg 1200x630           4.81 K    ±25.14%         4.44 K        10.35 K
+png 600x600           17.57 K     ±7.24%        17.32 K        22.27 K
+png 1200x630          72.86 K     ±5.90%        71.96 K        99.57 K
+webp 1200x630         91.52 K     ±4.47%        90.32 K       107.80 K
+jpeg 1200x630        103.09 K     ±9.36%       100.26 K       148.19 K
+
+Comparison: 
+svg 600x600            1.54 K
+svg 1200x630           4.81 K - 2.59x reduction count +2.95 K
+png 600x600           17.57 K - 9.47x reduction count +15.72 K
+png 1200x630          72.86 K - 39.24x reduction count +71.00 K
+webp 1200x630         91.52 K - 49.29x reduction count +89.66 K
+jpeg 1200x630        103.09 K - 55.52x reduction count +101.24 K
