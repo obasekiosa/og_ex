@@ -353,3 +353,101 @@ Requirements:
 - Document the volatile-assign hazard and the assigns-divergence contract
 - Bench before and after: config-build signing cost and warm-hit cost
 - Sequence after eviction policies land, as the safety net for URL churn
+
+## LiveView integration
+
+Allow LiveView pages to declare cards without a controller. The current
+`use OgEx.Controller` + `og_card` + `register_before_send` head injection
+(`lib/og_ex/controller.ex:35`, `lib/og_ex/head.ex`) only applies to
+`Plug.Conn` controller pages. LiveView's `mount/3`/`handle_params/3` lifecycle
+has no `conn` after the disconnected render and renders via `Phoenix.LiveView`
+sockets, so the existing pipeline does not apply. `docs/04-liveview.md:1` and
+`docs/05-implementation.md:425` describe this as proposed Phase 3, not
+implemented; the demo `curl /live_test` verification returned no `og:image`.
+
+Proposed:
+
+```elixir
+defmodule MyAppWeb.PostLive do
+  use MyAppWeb, :live_view
+  use OgEx.LiveView
+
+  # option A: declarative, analogous to og_card
+  og_card :show, MyAppWeb.PostCard
+
+  def mount(%{"id" => id}, _session, socket) do
+    {:ok, assign(socket, :post, Blog.get_post!(id))}
+  end
+end
+```
+
+```elixir
+# option B: imperative, as proposed in docs/04-liveview.md:10
+def mount(%{"id" => id}, _session, socket) do
+  post = Blog.get_post!(id)
+  {:ok, socket |> assign(:post, post) |> OgEx.LiveView.og(card: {MyAppWeb.PostCard, post: post})}
+end
+```
+
+```heex
+<head>
+  <OgEx.meta config={@og_ex} />
+</head>
+```
+
+For live navigation a hook patches `<head>`:
+
+```heex
+<OgEx.live_meta config={@og_ex} />
+```
+
+Requirements:
+
+- `OgEx.LiveView.og/2` storing `OgEx.Config` in socket assigns (ConfigBuilder
+  variant taking socket + image_path), not `conn`.
+- `OgEx.Meta` component rendering from `assigns[:og_ex]` for disconnected
+  initial HTML (crawlers never execute LiveView JS; docs/04-liveview.md:60).
+- A conventional HTTP image controller/route remains the image source;
+  LiveView only supplies the URL. Loader contract reconstructs assigns from
+  params without mounting the LiveView (same cache key as controllers).
+- Optional client hook for live navigation metadata replacement.
+
+Crawler constraint: any state affecting the card must be recoverable from
+`path`/`query` params or persistent storage; socket-only assigns (e.g. tab
+selection at `/posts/42`) cannot be recovered (`docs/04-liveview.md:113`).
+
+## Dedicated `og` router verb (stable `name.format` image server)
+
+Host a standalone OG microservice with a verb like `get`/`live`:
+
+```elixir
+scope "/og", MyAppWeb do
+  pipe_through :browser
+  og "/posts/:id", MyAppWeb.PostOgCard
+  og "/posts/:id", MyAppWeb.PostOgCard, name: :card          # → post_og_card.png
+  og "/posts/:id", MyAppWeb.PostOgCard, name: "social", format: :webp # → social.webp
+end
+```
+
+Today `GET /og/posts/:id/og.png` (stable, not HMAC-tokenized). Future
+`<file-name>.<format>` arbitrary names via same options.
+
+- Default `name: "og"` everywhere. `:card` derives from card module last
+  segment lowercased with Camel→`_` (`PostOgCard` → `post_og_card`).
+  Any other string uses that string.
+- Card can set `use OgEx.Card, name: "cover", format: :png` but router
+  `og` spec overrides card spec; route `format:` wins over card's
+  `format:`.
+- Generates `GET` routes owned by `OgEx.Router` dispatch reuse
+  (`lib/og_ex/router.ex:31`, `lib/og_ex/dispatcher.ex:99` path_request +
+  route_info), scoped/host-aware, verified routes (`~p"/og/posts/#{id}/og.png"`),
+  compile-time conflict if app owns `og.*`. No `loader:` required —
+  `Card.load/2` runs if defined, else empty/params assigns.
+- Stable URLs: change detected via `ETag: hash({card, version, fingerprints})`
+  + `Cache-Control: public, max-age=60, stale-while-revalidate`
+  (`lib/og_ex/image_response.ex`), not `opengraph-image/TOKEN` HMAC
+  (`lib/og_ex/config_builder.ex:212`). The page that references the image
+  need not know a token; dedicated server's URL is predictable.
+- Keep `og_ex_routes()` catch-all compatibility for `0.3.x` migration.
+- Tests: stable name/format precedence, `:card` derivation, scope/host,
+  verified routes, conflict detection, loader-optional, ETag stability.
