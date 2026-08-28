@@ -19,78 +19,28 @@ Generated images are served from signed versions of the page URL. The image
 request runs the card loader without running the normal page action.
 
 ```mermaid
-sequenceDiagram
-  autonumber
-  participant Browser
-  participant Controller
-  participant OgEx
-  participant Cache
-  participant Takumi
-  participant Crawler
-  Browser->>Controller: GET /posts/42
-  Controller->>OgEx: og_card show
-  OgEx->>OgEx: sign canonical path
-  OgEx-->>Browser: HTML with og:image
-  Note over Crawler,Cache: Image — cache HIT
-  Crawler->>OgEx: GET opengraph-image TOKEN
-  OgEx->>Cache: lookup HIT
-  Cache-->>Crawler: 200 PNG immutable
-  Note over Crawler,Takumi: Image — cache MISS
-  Crawler->>OgEx: GET opengraph-image TOKEN
-  OgEx->>Cache: lookup MISS
-  OgEx->>Takumi: render
-  Takumi-->>Cache: insert
-  Cache-->>Crawler: 200 PNG immutable
-  Note over Browser,Crawler: HTML and image are separate requests
+flowchart TD
+  A[GET /posts/42] --> B[Controller show]
+  B --> C[OgEx sign canonical path]
+  C --> D[HTML with og:image]
 ```
 
+```mermaid
+flowchart TD
+  A[GET opengraph-image TOKEN] --> B[Dispatcher verify]
+  B --> C[Card load]
+  C --> D{Cache lookup}
+  D -->|HIT| E[200 PNG immutable]
 ```
-Initial request — HTML page
 
-  GET /posts/42
-       │
-       ▼
-  Controller.show loads page data
-       │
-       ▼
-  OgEx signs canonical path → TOKEN
-       │
-       ▼
-  HTML + <meta og:image="/posts/42/opengraph-image/TOKEN">
-
-
-Image request — cache HIT
-
-  GET /posts/42/opengraph-image/TOKEN
-       │
-       ▼
-  Dispatcher verifies HMAC
-       │
-       ▼
-  Card.load (no page action)
-       │
-       ▼
-  Cache lookup → HIT
-       │
-       ▼
-  200 PNG (immutable, ETag)
-
-
-Image request — cache MISS
-
-  GET /posts/42/opengraph-image/TOKEN
-       │
-       ▼
-  Dispatcher verifies HMAC
-       │
-       ▼
-  Card.load (no page action)
-       │
-       ▼
-  Cache lookup → MISS → Takumi render → Cache insert
-       │
-       ▼
-  200 PNG (immutable, ETag)
+```mermaid
+flowchart TD
+  A[GET opengraph-image TOKEN] --> B[Dispatcher verify]
+  B --> C[Card load]
+  C --> D{Cache lookup}
+  D -->|MISS| E[Takumi render]
+  E --> F[Cache insert]
+  F --> G[200 PNG immutable]
 ```
 
 ## Release status
