@@ -5,52 +5,9 @@ authors need to understand. It is not a second setup guide; application usage
 belongs in the README and public API reference.
 
 ```
-Initial — HTML page
-
-  GET /posts/42
-       │
-       ▼
-  Controller action
-       │
-       ▼
-  ConfigBuilder build and sign
-       │
-       ▼
-  Head put_config plus render
-       │
-       ▼
-  Head injection
-       │
-       ▼
-  HTML with og:image
-
-
-Image — cache HIT
-
-  GET opengraph-image TOKEN
-       │
-       ▼
-  Dispatcher (Router or Plug)
-       │
-       ▼
-  route_info plus verify
-       │
-       ▼
-  put_origin plus Card load → Cache HIT → 200
-
-
-Image — cache MISS
-
-  GET opengraph-image TOKEN
-       │
-       ▼
-  Dispatcher (Router or Plug)
-       │
-       ▼
-  route_info plus verify
-       │
-       ▼
-  put_origin plus Card load → Cache MISS → Takumi → insert → 200
+Initial: GET /posts/42 → Controller → ConfigBuilder → Head inject → HTML with og:image
+HIT:     GET opengraph-image TOKEN → Dispatcher → Card.load → Cache HIT → 200
+MISS:    GET opengraph-image TOKEN → Dispatcher → Card.load → Cache MISS → Takumi → 200
 ```
 
 ## Controller dispatch
