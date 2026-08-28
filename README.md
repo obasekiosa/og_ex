@@ -24,33 +24,23 @@ sequenceDiagram
   participant Browser
   participant Controller
   participant OgEx
-  participant Cache as Cache (ETS)
+  participant Cache
   participant Takumi
   participant Crawler
   Browser->>Controller: GET /posts/42
   Controller->>OgEx: og_card :show + load page data
   OgEx->>OgEx: ConfigBuilder sign canonical path
-  OgEx-->>Browser: HTML + <meta og:image=/opengraph-image/TOKEN>
-  Crawler->>OgEx: GET /opengraph-image/TOKEN<br/>or ?__og_ex=TOKEN
-  OgEx->>OgEx: Dispatcher verify signature<br/>+ resolve controller
-  OgEx->>OgEx: Card.load/2 (no page action)
-  OgEx->>Cache: lookup {card, version, size, fingerprints}
+  OgEx-->>Browser: HTML with meta og:image
+  Crawler->>OgEx: GET opengraph-image TOKEN
+  OgEx->>OgEx: Dispatcher verify signature
+  OgEx->>OgEx: Card.load no page action
+  OgEx->>Cache: lookup card version size
   Cache-->>OgEx: miss
-  OgEx->>Takumi: render HEEx + fonts + images
-  Takumi-->>Cache: PNG / WebP / SVG
-  Cache-->>Crawler: 200 image/* (immutable, ETag)
-  Note over Browser,Crawler: HTML and image are two separate HTTP requests;<br/>streaming/compressed HTML is not rewritten
+  OgEx->>Takumi: render HEEx fonts images
+  Takumi-->>Cache: PNG WebP SVG
+  Cache-->>Crawler: 200 image immutable ETag
+  Note over Browser,Crawler: HTML and image are separate requests
 ```
-
-<details>
-<summary>Text version (for hex.pm)</summary>
-
-```
-Browser --GET /posts/42--> Controller --og_card + page data--> OgEx --sign canonical path--> Browser (HTML + <meta og:image=/opengraph-image/TOKEN>)
-Crawler --GET /opengraph-image/TOKEN--> OgEx --verify + resolve--> Card.load/2 --lookup--> Cache (miss) --render HEEx/fonts/images--> Takumi --PNG--> Cache --200 immutable--> Crawler
-```
-
-</details>
 
 ## Release status
 
