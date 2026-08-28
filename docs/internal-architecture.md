@@ -4,39 +4,53 @@ This document describes the implementation boundaries maintainers and adapter
 authors need to understand. It is not a second setup guide; application usage
 belongs in the README and public API reference.
 
-**Initial — HTML page**
-
-```mermaid
-flowchart TD
-  A[GET /posts/42] --> B[Controller action]
-  B --> C[ConfigBuilder build and sign]
-  C --> D[Head put_config plus render]
-  D --> E[Head injection]
-  E --> F[HTML with og:image]
 ```
+Initial — HTML page
 
-**Image — cache HIT**
+  GET /posts/42
+       │
+       ▼
+  Controller action
+       │
+       ▼
+  ConfigBuilder build and sign
+       │
+       ▼
+  Head put_config plus render
+       │
+       ▼
+  Head injection
+       │
+       ▼
+  HTML with og:image
 
-```mermaid
-flowchart TD
-  A[GET opengraph-image TOKEN] --> B[Dispatcher]
-  B --> C[route_info plus verify]
-  C --> D[put_origin plus Card load]
-  D --> E{Cache lookup}
-  E -->|HIT| F[200 immutable]
-```
 
-**Image — cache MISS**
+Image — cache HIT
 
-```mermaid
-flowchart TD
-  A[GET opengraph-image TOKEN] --> B[Dispatcher]
-  B --> C[route_info plus verify]
-  C --> D[put_origin plus Card load]
-  D --> E{Cache lookup}
-  E -->|MISS| F[Takumi render]
-  F --> G[Cache insert]
-  G --> H[200 immutable]
+  GET opengraph-image TOKEN
+       │
+       ▼
+  Dispatcher (Router or Plug)
+       │
+       ▼
+  route_info plus verify
+       │
+       ▼
+  put_origin plus Card load → Cache HIT → 200
+
+
+Image — cache MISS
+
+  GET opengraph-image TOKEN
+       │
+       ▼
+  Dispatcher (Router or Plug)
+       │
+       ▼
+  route_info plus verify
+       │
+       ▼
+  put_origin plus Card load → Cache MISS → Takumi → insert → 200
 ```
 
 ## Controller dispatch

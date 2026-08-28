@@ -18,35 +18,47 @@ end
 Generated images are served from signed versions of the page URL. The image
 request runs the card loader without running the normal page action.
 
-**Initial — HTML page**
-
-```mermaid
-flowchart TD
-  A[GET /posts/42] --> B[Controller show]
-  B --> C[OgEx sign canonical path]
-  C --> D[HTML with og:image]
 ```
+Initial — HTML page
 
-**Image — cache HIT**
+  GET /posts/42
+       │
+       ▼
+  Controller show
+       │
+       ▼
+  OgEx sign canonical path
+       │
+       ▼
+  HTML with og:image
 
-```mermaid
-flowchart TD
-  A[GET opengraph-image TOKEN] --> B[Dispatcher verify]
-  B --> C[Card load]
-  C --> D{Cache lookup}
-  D -->|HIT| E[200 PNG immutable]
-```
 
-**Image — cache MISS**
+Image — cache HIT
 
-```mermaid
-flowchart TD
-  A[GET opengraph-image TOKEN] --> B[Dispatcher verify]
-  B --> C[Card load]
-  C --> D{Cache lookup}
-  D -->|MISS| E[Takumi render]
-  E --> F[Cache insert]
-  F --> G[200 PNG immutable]
+  GET opengraph-image TOKEN
+       │
+       ▼
+  Dispatcher verify
+       │
+       ▼
+  Card load
+       │
+       ▼
+  Cache HIT → 200 PNG
+
+
+Image — cache MISS
+
+  GET opengraph-image TOKEN
+       │
+       ▼
+  Dispatcher verify
+       │
+       ▼
+  Card load
+       │
+       ▼
+  Cache MISS → Takumi render → Cache insert → 200 PNG
 ```
 
 ## Release status
