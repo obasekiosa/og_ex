@@ -4,32 +4,59 @@ This document describes the implementation boundaries maintainers and adapter
 authors need to understand. It is not a second setup guide; application usage
 belongs in the README and public API reference.
 
-```mermaid
-flowchart TD
-  A[Browser GET /posts/42] --> B[Controller action]
-  B --> C{OgEx.Controller render wrapper}
-  C -->|page request| D[ConfigBuilder build and sign]
-  D --> E[Head put_config plus Phoenix render]
-  E --> F[Head injection before head close]
-  F --> G[HTML with signed og:image]
+```
+Initial request — HTML page
 
-  H[Crawler GET opengraph-image TOKEN] --> I{Dispatcher}
-  I -->|Router og_ex_routes or Plug OgEx| J[route_info plus verify signature]
-  J --> K[Request put_origin trusted context]
-  K --> L[Card load]
-  L --> M[HTML render HEEx]
-  M --> N[Resources load plus fingerprint]
-  N --> O{Cache lookup}
-  O -->|hit| P[200 immutable plus ETag]
-  O -->|miss| Q[Takumi NIF dirty CPU]
-  Q --> R[Cache insert]
-  R --> P
+  GET /posts/42
+       │
+       ▼
+  Controller action
+       │
+       ▼
+  ConfigBuilder build and sign
+       │
+       ▼
+  Head put_config + Phoenix render
+       │
+       ▼
+  Head injection before head close
+       │
+       ▼
+  HTML with signed og:image
 
-  S[Direct image metadata] -.-> D
-  T[Fonts lazy marker] -.-> Q
 
-  classDef edge stroke-dasharray: 5 5;
-  class S,T edge
+Image request — cache HIT
+
+  GET opengraph-image TOKEN
+       │
+       ▼
+  Dispatcher (Router or Plug)
+       │
+       ▼
+  route_info + verify signature
+       │
+       ▼
+  Request put_origin → Card load → Resources → Cache HIT
+       │
+       ▼
+  200 immutable + ETag
+
+
+Image request — cache MISS
+
+  GET opengraph-image TOKEN
+       │
+       ▼
+  Dispatcher (Router or Plug)
+       │
+       ▼
+  route_info + verify signature
+       │
+       ▼
+  Request put_origin → Card load → Resources → Cache MISS
+       │
+       ▼
+  Takumi NIF dirty CPU → Cache insert → 200 immutable + ETag
 ```
 
 ## Controller dispatch

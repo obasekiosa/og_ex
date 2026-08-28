@@ -4,14 +4,10 @@ This guide summarizes the API used by Phoenix applications and extension
 modules. Internal request dispatch, signatures, cache-key construction, and the
 native bridge are covered in [Internal architecture](internal-architecture.md).
 
-```mermaid
-sequenceDiagram
-  Browser->>Controller: GET /posts/42
-  Controller->>OgEx: ConfigBuilder sign
-  OgEx-->>Browser: HTML + signed og:image
-  Crawler->>OgEx: GET image URL
-  OgEx->>Takumi: verify → Card.load → render → cache
-  Takumi-->>Crawler: 200 image
+```
+Initial request: GET /posts/42 → Controller → OgEx sign → HTML with og:image
+Image HIT:       GET opengraph-image TOKEN → verify → Card.load → Cache HIT → 200
+Image MISS:      GET opengraph-image TOKEN → verify → Card.load → Cache MISS → Takumi → 200
 ```
 
 See `README` (Request flow) and `Internal architecture` for the full phase breakdown.

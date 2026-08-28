@@ -18,28 +18,53 @@ end
 Generated images are served from signed versions of the page URL. The image
 request runs the card loader without running the normal page action.
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant Browser
-  participant Controller
-  participant OgEx
-  participant Cache
-  participant Takumi
-  participant Crawler
-  Browser->>Controller: GET /posts/42
-  Controller->>OgEx: og_card :show + load page data
-  OgEx->>OgEx: ConfigBuilder sign canonical path
-  OgEx-->>Browser: HTML with meta og:image
-  Crawler->>OgEx: GET opengraph-image TOKEN
-  OgEx->>OgEx: Dispatcher verify signature
-  OgEx->>OgEx: Card.load no page action
-  OgEx->>Cache: lookup card version size
-  Cache-->>OgEx: miss
-  OgEx->>Takumi: render HEEx fonts images
-  Takumi-->>Cache: PNG WebP SVG
-  Cache-->>Crawler: 200 image immutable ETag
-  Note over Browser,Crawler: HTML and image are separate requests
+```
+Initial request — HTML page
+
+  GET /posts/42
+       │
+       ▼
+  Controller.show loads page data
+       │
+       ▼
+  OgEx signs canonical path → TOKEN
+       │
+       ▼
+  HTML + <meta og:image="/posts/42/opengraph-image/TOKEN">
+
+
+Image request — cache HIT
+
+  GET /posts/42/opengraph-image/TOKEN
+       │
+       ▼
+  Dispatcher verifies HMAC
+       │
+       ▼
+  Card.load (no page action)
+       │
+       ▼
+  Cache lookup → HIT
+       │
+       ▼
+  200 PNG (immutable, ETag)
+
+
+Image request — cache MISS
+
+  GET /posts/42/opengraph-image/TOKEN
+       │
+       ▼
+  Dispatcher verifies HMAC
+       │
+       ▼
+  Card.load (no page action)
+       │
+       ▼
+  Cache lookup → MISS → Takumi render → Cache insert
+       │
+       ▼
+  200 PNG (immutable, ETag)
 ```
 
 ## Release status
