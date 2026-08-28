@@ -19,7 +19,17 @@ Generated images are served from signed versions of the page URL. The image
 request runs the card loader without running the normal page action.
 
 ```
-GET /posts/42 → Controller → OgEx sign → HTML with og:image → GET opengraph-image TOKEN → Dispatcher → Card.load → Cache HIT→200 / MISS→Takumi→200
+Initial — HTML              Image — HIT                 Image — MISS
+GET /posts/42               GET TOKEN                   GET TOKEN
+    |                           |                           |
+    v                           v                           v
+Controller                  Dispatcher                  Dispatcher
+    |                           |                           |
+    v                           v                           v
+OgEx sign                   Card.load                   Card.load
+    |                           |                           |
+    v                           v                           v
+HTML with og:image          Cache HIT → 200             Cache MISS → Takumi → 200
 ```
 
 ## Release status
