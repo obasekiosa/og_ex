@@ -4,12 +4,16 @@ This guide summarizes the API used by Phoenix applications and extension
 modules. Internal request dispatch, signatures, cache-key construction, and the
 native bridge are covered in [Internal architecture](internal-architecture.md).
 
+**Initial — HTML page**
+
 ```mermaid
 flowchart TD
   A[GET /posts/42] --> B[Controller]
   B --> C[OgEx sign]
   C --> D[HTML with og:image]
 ```
+
+**Image — cache HIT**
 
 ```mermaid
 flowchart TD
@@ -18,6 +22,8 @@ flowchart TD
   C --> D{HIT}
   D --> E[200]
 ```
+
+**Image — cache MISS**
 
 ```mermaid
 flowchart TD

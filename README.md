@@ -18,12 +18,16 @@ end
 Generated images are served from signed versions of the page URL. The image
 request runs the card loader without running the normal page action.
 
+**Initial — HTML page**
+
 ```mermaid
 flowchart TD
   A[GET /posts/42] --> B[Controller show]
   B --> C[OgEx sign canonical path]
   C --> D[HTML with og:image]
 ```
+
+**Image — cache HIT**
 
 ```mermaid
 flowchart TD
@@ -32,6 +36,8 @@ flowchart TD
   C --> D{Cache lookup}
   D -->|HIT| E[200 PNG immutable]
 ```
+
+**Image — cache MISS**
 
 ```mermaid
 flowchart TD

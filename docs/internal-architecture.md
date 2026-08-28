@@ -4,6 +4,8 @@ This document describes the implementation boundaries maintainers and adapter
 authors need to understand. It is not a second setup guide; application usage
 belongs in the README and public API reference.
 
+**Initial — HTML page**
+
 ```mermaid
 flowchart TD
   A[GET /posts/42] --> B[Controller action]
@@ -13,6 +15,8 @@ flowchart TD
   E --> F[HTML with og:image]
 ```
 
+**Image — cache HIT**
+
 ```mermaid
 flowchart TD
   A[GET opengraph-image TOKEN] --> B[Dispatcher]
@@ -21,6 +25,8 @@ flowchart TD
   D --> E{Cache lookup}
   E -->|HIT| F[200 immutable]
 ```
+
+**Image — cache MISS**
 
 ```mermaid
 flowchart TD
