@@ -5,9 +5,7 @@ authors need to understand. It is not a second setup guide; application usage
 belongs in the README and public API reference.
 
 ```
-Initial: GET /posts/42 → Controller → ConfigBuilder → Head inject → HTML with og:image
-HIT:     GET opengraph-image TOKEN → Dispatcher → Card.load → Cache HIT → 200
-MISS:    GET opengraph-image TOKEN → Dispatcher → Card.load → Cache MISS → Takumi → 200
+GET /posts/42 → Controller → ConfigBuilder → Head inject → HTML → GET opengraph-image TOKEN → Dispatcher → Card.load → Cache HIT→200 / MISS→Takumi→200
 ```
 
 ## Controller dispatch
