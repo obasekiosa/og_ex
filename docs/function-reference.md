@@ -5,7 +5,23 @@ modules. Internal request dispatch, signatures, cache-key construction, and the
 native bridge are covered in [Internal architecture](internal-architecture.md).
 
 ```
-Initial: GET /posts/42 → OgEx sign → HTML   |   HIT: GET TOKEN → HIT → 200   |   MISS: GET TOKEN → MISS → Takumi → 200
+Initial HTML          Image HIT              Image MISS
+GET /posts/42         GET TOKEN              GET TOKEN
+      |                    |                     |
+      v                    v                     v
+ Controller            Dispatcher             Dispatcher
+      |                    |                     |
+      v                    v                     v
+  OgEx sign             Card load               Card load
+      |                    |                     |
+      v                    v                     v
+      HTML                Cache HIT               Cache MISS
+                            |                     |
+                            v                     v
+                           200                  Takumi
+                                                  |
+                                                  v
+                                                 200
 ```
 
 See `README` (Request flow) and `Internal architecture` for the full phase breakdown.

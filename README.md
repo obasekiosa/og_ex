@@ -19,17 +19,23 @@ Generated images are served from signed versions of the page URL. The image
 request runs the card loader without running the normal page action.
 
 ```
-Initial — HTML              Image — HIT                 Image — MISS
-GET /posts/42               GET TOKEN                   GET TOKEN
-    |                           |                           |
-    v                           v                           v
-Controller                  Dispatcher                  Dispatcher
-    |                           |                           |
-    v                           v                           v
-OgEx sign                   Card.load                   Card.load
-    |                           |                           |
-    v                           v                           v
-HTML with og:image          Cache HIT → 200             Cache MISS → Takumi → 200
+Initial HTML          Image HIT              Image MISS
+GET /posts/42         GET TOKEN              GET TOKEN
+      |                    |                     |
+      v                    v                     v
+ Controller            Dispatcher             Dispatcher
+      |                    |                     |
+      v                    v                     v
+  OgEx sign             Card load               Card load
+      |                    |                     |
+      v                    v                     v
+HTML with og:image       Cache HIT               Cache MISS
+                            |                     |
+                            v                     v
+                           200                  Takumi
+                                                  |
+                                                  v
+                                                 200
 ```
 
 ## Release status

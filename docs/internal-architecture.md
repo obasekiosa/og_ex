@@ -5,17 +5,23 @@ authors need to understand. It is not a second setup guide; application usage
 belongs in the README and public API reference.
 
 ```
-Initial                       HIT                         MISS
-GET /posts/42                 GET TOKEN                   GET TOKEN
-    |                             |                           |
-    v                             v                           v
-Controller → ConfigBuilder    Dispatcher                  Dispatcher
-    |                             |                           |
-    v                             v                           v
-Head inject                 Card.load                   Card.load
-    |                             |                           |
-    v                             v                           v
-HTML                        Cache HIT → 200             Cache MISS → Takumi → 200
+Initial HTML          Image HIT              Image MISS
+GET /posts/42         GET TOKEN              GET TOKEN
+      |                    |                     |
+      v                    v                     v
+ Controller            Dispatcher             Dispatcher
+      |                    |                     |
+      v                    v                     v
+ConfigBuilder           Card load               Card load
+      |                    |                     |
+      v                    v                     v
+ Head inject             Cache HIT               Cache MISS
+      |                    |                     |
+      v                    v                     v
+     HTML                200                  Takumi
+                                                  |
+                                                  v
+                                                 200
 ```
 
 ## Controller dispatch
